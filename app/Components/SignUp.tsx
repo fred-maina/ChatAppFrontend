@@ -1,7 +1,11 @@
 "use client";
+
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 
 export default function SignupForm() {
+  const router = useRouter();
+
   const [form, setForm] = useState({
     firstName: "",
     lastName: "",
@@ -29,31 +33,37 @@ export default function SignupForm() {
       return;
     }
 
-    const res = await fetch("/api/auth/signup", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(form),
-    });
-
-    const data = await res.json();
-
-    if (!res.ok) {
-      setError(data.message || "Signup failed");
-    } else {
-      setMessage("Signup successful! Please log in.");
-      setForm({
-        firstName: "",
-        lastName: "",
-        username: "",
-        email: "",
-        password: "",
-        acceptedTerms: false,
+    try {
+      const res = await fetch("http://localhost:8080/api/auth/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(form),
       });
+
+      const data = await res.json();
+
+      if (!res.ok || !data.success) {
+        setError(data.message || "Signup failed");
+        return;
+      }
+
+      // ✅ Auto-login: store token
+      localStorage.setItem("token", data.token);
+      setMessage("Signup successful!");
+
+      // Optional: store user info
+      // localStorage.setItem("user", JSON.stringify(data.user));
+
+      router.push("/dashboard");
+    } catch (err) {
+      setError("Something went wrong. Please try again.");
     }
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-5">
+    <form onSubmit={handleSubmit} className="max-w-md mx-auto mt-10 space-y-5 p-6 border rounded-xl shadow-md bg-white">
+      <h2 className="text-2xl font-semibold text-center text-green-700">Create an Account</h2>
+
       {/* First/Last Name */}
       <div className="flex gap-4">
         <div className="relative w-1/2">
@@ -62,7 +72,7 @@ export default function SignupForm() {
             value={form.firstName}
             onChange={handleChange}
             required
-            className="peer w-full border px-3 pt-6 pb-2 rounded-lg placeholder-transparent focus:ring-2 focus:ring-primary"
+            className="peer w-full border px-3 pt-6 pb-2 rounded-lg placeholder-transparent focus:ring-2 focus:ring-green-600"
             placeholder="First Name"
           />
           <label className="absolute left-3 top-1.5 text-sm text-gray-500 transition-all 
@@ -77,7 +87,7 @@ export default function SignupForm() {
             value={form.lastName}
             onChange={handleChange}
             required
-            className="peer w-full border px-3 pt-6 pb-2 rounded-lg placeholder-transparent focus:ring-2 focus:ring-primary"
+            className="peer w-full border px-3 pt-6 pb-2 rounded-lg placeholder-transparent focus:ring-2 focus:ring-green-600"
             placeholder="Last Name"
           />
           <label className="absolute left-3 top-1.5 text-sm text-gray-500 transition-all 
@@ -95,7 +105,7 @@ export default function SignupForm() {
           value={form.username}
           onChange={handleChange}
           required
-          className="peer w-full border px-3 pt-6 pb-2 rounded-lg placeholder-transparent focus:ring-2 focus:ring-primary"
+          className="peer w-full border px-3 pt-6 pb-2 rounded-lg placeholder-transparent focus:ring-2 focus:ring-green-600"
           placeholder="Username"
         />
         <label className="absolute left-3 top-1.5 text-sm text-gray-500 transition-all 
@@ -113,7 +123,7 @@ export default function SignupForm() {
           value={form.email}
           onChange={handleChange}
           required
-          className="peer w-full border px-3 pt-6 pb-2 rounded-lg placeholder-transparent focus:ring-2 focus:ring-primary"
+          className="peer w-full border px-3 pt-6 pb-2 rounded-lg placeholder-transparent focus:ring-2 focus:ring-green-600"
           placeholder="Email"
         />
         <label className="absolute left-3 top-1.5 text-sm text-gray-500 transition-all 
@@ -131,7 +141,7 @@ export default function SignupForm() {
           value={form.password}
           onChange={handleChange}
           required
-          className="peer w-full border px-3 pt-6 pb-2 rounded-lg placeholder-transparent focus:ring-2 focus:ring-primary"
+          className="peer w-full border px-3 pt-6 pb-2 rounded-lg placeholder-transparent focus:ring-2 focus:ring-green-600"
           placeholder="Password"
         />
         <label className="absolute left-3 top-1.5 text-sm text-gray-500 transition-all 
@@ -153,7 +163,7 @@ export default function SignupForm() {
         />
         <label className="text-gray-600">
           I agree to the{" "}
-          <a href="#" className="text-primary hover:underline">
+          <a href="#" className="text-green-600 hover:underline">
             terms and conditions
           </a>
         </label>
@@ -168,8 +178,8 @@ export default function SignupForm() {
       </button>
 
       {/* Feedback */}
-      {error && <p className="text-red-600 text-sm">{error}</p>}
-      {message && <p className="text-green-600 text-sm">{message}</p>}
+      {error && <p className="text-red-600 text-sm text-center">{error}</p>}
+      {message && <p className="text-green-600 text-sm text-center">{message}</p>}
     </form>
   );
 }
