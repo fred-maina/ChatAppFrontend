@@ -8,11 +8,16 @@ type GoogleLoginButtonProps = {
 
 export function GoogleLoginButton({ mode }: GoogleLoginButtonProps) {
   const handleGoogleLogin = () => {
-    const endpoint =
-      mode === "signup" ? "/api/auth/google/signup" : "/api/auth/google/signin";
-    window.location.href = endpoint;
+    const clientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID!;
+    const redirectUri = "http://localhost:3000/oauth/callback";
+    const scope = "openid email profile";
+    const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?response_type=code&client_id=${clientId}&redirect_uri=${encodeURIComponent(
+      redirectUri
+    )}&scope=${encodeURIComponent(scope)}`;
+  
+    window.location.href = authUrl;
   };
-
+  
   return (
     <button
       onClick={handleGoogleLogin}
