@@ -1,7 +1,11 @@
+// app/Components/SignUp.tsx
 "use client";
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import LegalModal from "./LegalModal";
+import TermsAndConditionsContent from "./TermsAndConditionsContent"; // Corrected import
+import PrivacyPolicyContent from "./PrivacyPolicyContent";
 
 export default function SignupForm() {
   const router = useRouter();
@@ -18,6 +22,10 @@ export default function SignupForm() {
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
 
+  const [isLegalModalOpen, setIsLegalModalOpen] = useState(false);
+  const [legalModalContent, setLegalModalContent] = useState<React.ReactNode>(null);
+  const [legalModalTitle, setLegalModalTitle] = useState("");
+
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value, type, checked } = e.target;
     setForm({ ...form, [name]: type === "checkbox" ? checked : value });
@@ -29,7 +37,7 @@ export default function SignupForm() {
     setMessage("");
 
     if (!form.acceptedTerms) {
-      setError("You must accept the terms and conditions.");
+      setError("You must accept the terms and conditions to proceed.");
       return;
     }
 
@@ -43,143 +51,191 @@ export default function SignupForm() {
       const data = await res.json();
 
       if (!res.ok || !data.success) {
-        setError(data.message || "Signup failed");
+        setError(data.message || "Sign up failed. Please check your details and try again.");
         return;
       }
 
-      // ✅ Auto-login: store token
-      localStorage.setItem("token", data.token);
-      setMessage("Signup successful!");
+      if (data.token) {
+        localStorage.setItem("token", data.token);
+      }
+      
+      setMessage("Signup successful! Redirecting to your dashboard...");
 
-      // Optional: store user info
-      // localStorage.setItem("user", JSON.stringify(data.user));
+      setTimeout(() => {
+        router.push("/dashboard");
+      }, 1500);
 
-      router.push("/dashboard");
     } catch (err) {
-      setError("Something went wrong. Please try again.");
+      setError("An unexpected error occurred. Please try again later.");
+      console.error("Signup error:", err);
     }
   };
 
+  const openTermsModal = () => {
+    setLegalModalTitle("Terms and Conditions");
+    setLegalModalContent(<TermsAndConditionsContent />); // Now uses the correct content component
+    setIsLegalModalOpen(true);
+  };
+
+  const openPrivacyModal = () => {
+    setLegalModalTitle("Privacy Policy");
+    setLegalModalContent(<PrivacyPolicyContent />);
+    setIsLegalModalOpen(true);
+  }
+
   return (
-    <form onSubmit={handleSubmit} className="max-w-md mx-auto mt-10 space-y-5 p-6 border rounded-xl shadow-md bg-white">
-      <h2 className="text-2xl font-semibold text-center text-green-700">Create an Account</h2>
+    <>
+      <form onSubmit={handleSubmit} className="space-y-5">
+        {/* ... (rest of your form inputs: firstName, lastName, username, email, password) ... */}
+        <div className="flex flex-col sm:flex-row gap-4">
+          <div className="relative w-full sm:w-1/2">
+            <input
+              id="firstName" 
+              name="firstName"
+              value={form.firstName}
+              onChange={handleChange}
+              required
+              className="peer w-full border border-gray-300 px-3 pt-5 pb-2 rounded-lg placeholder-transparent focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500 transition-colors"
+              placeholder="First Name"
+            />
+            <label
+              htmlFor="firstName"
+              className="absolute left-3 top-1 text-xs text-gray-500 transition-all 
+                       peer-placeholder-shown:top-3.5 peer-placeholder-shown:text-base 
+                       peer-focus:top-1 peer-focus:text-xs peer-focus:text-teal-600"
+            >
+              First Name
+            </label>
+          </div>
+          <div className="relative w-full sm:w-1/2">
+            <input
+              id="lastName"
+              name="lastName"
+              value={form.lastName}
+              onChange={handleChange}
+              required
+              className="peer w-full border border-gray-300 px-3 pt-5 pb-2 rounded-lg placeholder-transparent focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500 transition-colors"
+              placeholder="Last Name"
+            />
+            <label
+              htmlFor="lastName"
+              className="absolute left-3 top-1 text-xs text-gray-500 transition-all 
+                       peer-placeholder-shown:top-3.5 peer-placeholder-shown:text-base 
+                       peer-focus:top-1 peer-focus:text-xs peer-focus:text-teal-600"
+            >
+              Last Name
+            </label>
+          </div>
+        </div>
 
-      {/* First/Last Name */}
-      <div className="flex gap-4">
-        <div className="relative w-1/2">
+        <div className="relative">
           <input
-            name="firstName"
-            value={form.firstName}
+            id="username_signup" 
+            name="username"
+            value={form.username}
             onChange={handleChange}
             required
-            className="peer w-full border px-3 pt-6 pb-2 rounded-lg placeholder-transparent focus:ring-2 focus:ring-green-600"
-            placeholder="First Name"
+            className="peer w-full border border-gray-300 px-3 pt-5 pb-2 rounded-lg placeholder-transparent focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500 transition-colors"
+            placeholder="Username"
           />
-          <label className="absolute left-3 top-1.5 text-sm text-gray-500 transition-all 
-            peer-placeholder-shown:top-3.5 peer-placeholder-shown:text-base 
-            peer-focus:top-1.5 peer-focus:text-sm">
-            First Name
+          <label
+            htmlFor="username_signup"
+            className="absolute left-3 top-1 text-xs text-gray-500 transition-all 
+                     peer-placeholder-shown:top-3.5 peer-placeholder-shown:text-base 
+                     peer-focus:top-1 peer-focus:text-xs peer-focus:text-teal-600"
+          >
+            Username
           </label>
         </div>
-        <div className="relative w-1/2">
+
+        <div className="relative">
           <input
-            name="lastName"
-            value={form.lastName}
+            id="email_signup" 
+            type="email"
+            name="email"
+            value={form.email}
             onChange={handleChange}
             required
-            className="peer w-full border px-3 pt-6 pb-2 rounded-lg placeholder-transparent focus:ring-2 focus:ring-green-600"
-            placeholder="Last Name"
+            className="peer w-full border border-gray-300 px-3 pt-5 pb-2 rounded-lg placeholder-transparent focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500 transition-colors"
+            placeholder="Email"
           />
-          <label className="absolute left-3 top-1.5 text-sm text-gray-500 transition-all 
-            peer-placeholder-shown:top-3.5 peer-placeholder-shown:text-base 
-            peer-focus:top-1.5 peer-focus:text-sm">
-            Last Name
+          <label
+            htmlFor="email_signup"
+            className="absolute left-3 top-1 text-xs text-gray-500 transition-all 
+                     peer-placeholder-shown:top-3.5 peer-placeholder-shown:text-base 
+                     peer-focus:top-1 peer-focus:text-xs peer-focus:text-teal-600"
+          >
+            Email
           </label>
         </div>
-      </div>
 
-      {/* Username */}
-      <div className="relative">
-        <input
-          name="username"
-          value={form.username}
-          onChange={handleChange}
-          required
-          className="peer w-full border px-3 pt-6 pb-2 rounded-lg placeholder-transparent focus:ring-2 focus:ring-green-600"
-          placeholder="Username"
-        />
-        <label className="absolute left-3 top-1.5 text-sm text-gray-500 transition-all 
-          peer-placeholder-shown:top-3.5 peer-placeholder-shown:text-base 
-          peer-focus:top-1.5 peer-focus:text-sm">
-          Username
-        </label>
-      </div>
+        <div className="relative">
+          <input
+            id="password_signup" 
+            type="password"
+            name="password"
+            value={form.password}
+            onChange={handleChange}
+            required
+            className="peer w-full border border-gray-300 px-3 pt-5 pb-2 rounded-lg placeholder-transparent focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500 transition-colors"
+            placeholder="Password"
+          />
+          <label
+            htmlFor="password_signup"
+            className="absolute left-3 top-1 text-xs text-gray-500 transition-all 
+                     peer-placeholder-shown:top-3.5 peer-placeholder-shown:text-base 
+                     peer-focus:top-1 peer-focus:text-xs peer-focus:text-teal-600"
+          >
+            Password
+          </label>
+        </div>
+        <div className="flex items-start text-sm gap-2 pt-1">
+          <input
+            id="acceptedTerms"
+            type="checkbox"
+            name="acceptedTerms"
+            checked={form.acceptedTerms}
+            onChange={handleChange}
+            required
+            className="mt-0.5 h-4 w-4 rounded border-gray-300 text-teal-600 focus:ring-teal-500 accent-teal-600 cursor-pointer"
+          />
+          <label htmlFor="acceptedTerms" className="text-gray-600">
+            I agree to the{" "}
+            <button
+              type="button"
+              onClick={openTermsModal}
+              className="text-teal-600 hover:text-teal-700 hover:underline font-medium"
+            >
+              Terms and Conditions
+            </button>
+            {" "}and have read the{" "}
+             <button
+              type="button"
+              onClick={openPrivacyModal}
+              className="text-teal-600 hover:text-teal-700 hover:underline font-medium"
+            >
+              Privacy Policy
+            </button>.
+          </label>
+        </div>
 
-      {/* Email */}
-      <div className="relative">
-        <input
-          type="email"
-          name="email"
-          value={form.email}
-          onChange={handleChange}
-          required
-          className="peer w-full border px-3 pt-6 pb-2 rounded-lg placeholder-transparent focus:ring-2 focus:ring-green-600"
-          placeholder="Email"
-        />
-        <label className="absolute left-3 top-1.5 text-sm text-gray-500 transition-all 
-          peer-placeholder-shown:top-3.5 peer-placeholder-shown:text-base 
-          peer-focus:top-1.5 peer-focus:text-sm">
-          Email
-        </label>
-      </div>
+        <button
+          type="submit"
+          className="w-full bg-teal-500 hover:bg-teal-600 text-white py-2.5 px-4 rounded-lg font-semibold shadow-sm hover:shadow-md focus:outline-none focus:ring-2 focus:ring-teal-500 focus:ring-offset-2 transition-all duration-150 ease-in-out transform active:scale-[0.98]"
+        >
+          Sign Up
+        </button>
 
-      {/* Password */}
-      <div className="relative">
-        <input
-          type="password"
-          name="password"
-          value={form.password}
-          onChange={handleChange}
-          required
-          className="peer w-full border px-3 pt-6 pb-2 rounded-lg placeholder-transparent focus:ring-2 focus:ring-green-600"
-          placeholder="Password"
-        />
-        <label className="absolute left-3 top-1.5 text-sm text-gray-500 transition-all 
-          peer-placeholder-shown:top-3.5 peer-placeholder-shown:text-base 
-          peer-focus:top-1.5 peer-focus:text-sm">
-          Password
-        </label>
-      </div>
+        {error && <p className="text-red-600 text-sm text-center py-1">{error}</p>}
+        {message && <p className="text-teal-600 text-sm text-center py-1">{message}</p>}
+      </form>
 
-      {/* Terms and Conditions */}
-      <div className="flex items-start text-sm gap-2">
-        <input
-          type="checkbox"
-          name="acceptedTerms"
-          checked={form.acceptedTerms}
-          onChange={handleChange}
-          required
-          className="mt-1 accent-green-600"
-        />
-        <label className="text-gray-600">
-          I agree to the{" "}
-          <a href="#" className="text-green-600 hover:underline">
-            terms and conditions
-          </a>
-        </label>
-      </div>
-
-      {/* Submit */}
-      <button
-        type="submit"
-        className="w-full bg-gradient-to-r from-green-500 to-green-600 text-white py-2 rounded-lg font-semibold shadow hover:scale-[1.01] transition cursor-pointer"
-      >
-        Sign Up
-      </button>
-
-      {/* Feedback */}
-      {error && <p className="text-red-600 text-sm text-center">{error}</p>}
-      {message && <p className="text-green-600 text-sm text-center">{message}</p>}
-    </form>
+      <LegalModal
+        isOpen={isLegalModalOpen}
+        onClose={() => setIsLegalModalOpen(false)}
+        title={legalModalTitle}
+        content={legalModalContent}
+      />
+    </>
   );
 }
