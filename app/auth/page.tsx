@@ -66,7 +66,7 @@ export default function AuthPage() {
             
             <div className="text-center text-xs text-gray-500">
               <p className="mb-2">
-                By continuing, you agree to AnonMsg's{" "}
+                By continuing, you agree to AnonMsg&apos;s{" "}
                 <button
                   onClick={openTermsModal}
                   className="text-teal-600 hover:text-teal-700 hover:underline font-medium"
