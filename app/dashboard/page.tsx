@@ -4,22 +4,13 @@
 
 import React, { useEffect, useState, useRef, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import Link from "next/link";
 import {
   LogOut,
   MessageSquareText,
-  Settings,
-  Share2,
   Copy,
-  Home,
-  Menu, 
-  X,    
   AlertTriangle,
-  SendHorizontal,
-  Trash2,
   Loader2,
   BellDot, 
-  BellOff,
   Link2Icon // For link icon
 } from "lucide-react";
 
@@ -97,6 +88,7 @@ const fetchUserChatsFromApi = async (token: string): Promise<Chat[]> => {
         errorMessage = errorData.message; 
       }
     } catch (e) { 
+      console.log(e);
     }
     console.error("API Error fetching chats (response not ok):", response.status, errorMessage); 
     throw new Error(errorMessage); 
@@ -237,83 +229,6 @@ function DashboardContent() {
       };
     }
   };
-  
-  useEffect(() => { 
-    const tokenFromStorage = localStorage.getItem("token"); 
-    const action = searchParams.get("action"); 
-    const emailFromQuery = searchParams.get("email"); 
-    const tempTokenFromQuery = searchParams.get("tempToken"); 
-
-    if (action === "setUsername" && emailFromQuery && tempTokenFromQuery) { 
-      setModalEmail(emailFromQuery); 
-      setModalToken(tempTokenFromQuery); 
-      setIsSetUsernameModalOpen(true); 
-      setIsLoadingUser(false); 
-    } else if (!tokenFromStorage) { 
-      router.push("/auth?error=no_token"); 
-    } else { 
-        setIsLoadingUser(true); 
-        fetch(`${API_BASE_URL}/api/auth/me`, { 
-            headers: { Authorization: `Bearer ${tokenFromStorage}` }, 
-        })
-        .then(async (res) => { 
-            if (!res.ok) { 
-                if (res.status === 401 || res.status === 403) { 
-                    localStorage.removeItem("token"); 
-                    router.push("/auth?sessionExpired=true"); 
-                }
-                const errorData = await res.json().catch(() => ({message: "Server returned an error."})); 
-                throw new Error(errorData.message || `Server error: ${res.status}`); 
-            }
-            return res.json(); 
-        })
-        .then((apiResponse: MeApiResponse) => { 
-            if (!apiResponse.success || !apiResponse.user || !apiResponse.user.id) { 
-                localStorage.removeItem("token"); 
-                router.push("/auth?error=invalid_user_data"); 
-                throw new Error(apiResponse.message || "Invalid user data received."); 
-            }
-
-            const fetchedUser = apiResponse.user; 
-            const fullUser: User = { 
-                ...fetchedUser, 
-                chatLink: fetchedUser.username ? `${window.location.origin}/chat/${fetchedUser.username}` : '' 
-            };
-            setUser(fullUser); 
-
-            if (fetchedUser.username === null && action !== "setUsername") { 
-                setModalEmail(fetchedUser.email || null); 
-                setModalToken(tokenFromStorage); 
-                setIsSetUsernameModalOpen(true); 
-            } else if (fetchedUser.username) { 
-                connectWebSocket(tokenFromStorage); 
-                setIsLoadingChats(true); 
-                fetchUserChatsFromApi(tokenFromStorage).then(fetchedApiChats => { 
-                    setChats(fetchedApiChats); 
-                }).catch(err => { 
-                    console.error("Failed to fetch initial chats:", err); 
-                    setUserError("Could not load your conversations initially. " + (err as Error).message); 
-                }).finally(() => setIsLoadingChats(false)); 
-            }
-        })
-        .catch(err => { 
-            console.error("Failed to fetch user data:", err); 
-            setUserError((err as Error).message || "Failed to load dashboard data. Please try logging in again."); 
-            localStorage.removeItem("token"); 
-             if (!isSetUsernameModalOpen) router.push("/auth?error=load_failed"); 
-        }).finally(() => { 
-            if(!isSetUsernameModalOpen) setIsLoadingUser(false); 
-        });
-    }
-    return () => { 
-        if (ws.current && ws.current.readyState === WebSocket.OPEN) { 
-            ws.current.close(1000, "Dashboard unmounting"); 
-        }
-        ws.current = null; 
-    };
-  }, [router, searchParams]); 
-
-
   const connectWebSocket = (token: string) => { 
     if (ws.current && ws.current.readyState === WebSocket.OPEN) { 
         console.log("WebSocket already connected."); 
@@ -452,6 +367,87 @@ function DashboardContent() {
         }
     };
   };
+
+
+  
+  useEffect(() => {
+    const tokenFromStorage = localStorage.getItem("token"); 
+    const action = searchParams.get("action"); 
+    const emailFromQuery = searchParams.get("email"); 
+    const tempTokenFromQuery = searchParams.get("tempToken"); 
+
+    if (action === "setUsername" && emailFromQuery && tempTokenFromQuery) { 
+      setModalEmail(emailFromQuery); 
+      setModalToken(tempTokenFromQuery); 
+      setIsSetUsernameModalOpen(true); 
+      setIsLoadingUser(false); 
+    } else if (!tokenFromStorage) { 
+      router.push("/auth?error=no_token"); 
+    } else { 
+        setIsLoadingUser(true); 
+        fetch(`${API_BASE_URL}/api/auth/me`, { 
+            headers: { Authorization: `Bearer ${tokenFromStorage}` }, 
+        })
+        .then(async (res) => { 
+            if (!res.ok) { 
+                if (res.status === 401 || res.status === 403) { 
+                    localStorage.removeItem("token"); 
+                    router.push("/auth?sessionExpired=true"); 
+                }
+                const errorData = await res.json().catch(() => ({message: "Server returned an error."})); 
+                throw new Error(errorData.message || `Server error: ${res.status}`); 
+            }
+            return res.json(); 
+        })
+        .then((apiResponse: MeApiResponse) => { 
+            if (!apiResponse.success || !apiResponse.user || !apiResponse.user.id) { 
+                localStorage.removeItem("token"); 
+                router.push("/auth?error=invalid_user_data"); 
+                throw new Error(apiResponse.message || "Invalid user data received."); 
+            }
+
+            const fetchedUser = apiResponse.user; 
+            const fullUser: User = { 
+                ...fetchedUser, 
+                chatLink: fetchedUser.username ? `${window.location.origin}/chat/${fetchedUser.username}` : '' 
+            };
+            setUser(fullUser); 
+
+            if (fetchedUser.username === null && action !== "setUsername") { 
+                setModalEmail(fetchedUser.email || null); 
+                setModalToken(tokenFromStorage); 
+                setIsSetUsernameModalOpen(true); 
+            } else if (fetchedUser.username) { 
+                // The connectWebSocket function is stable and doesn't rely on changing props/state,
+                // but ESLint doesn't know that. It's safer to include it.
+                connectWebSocket(tokenFromStorage); 
+                setIsLoadingChats(true); 
+                fetchUserChatsFromApi(tokenFromStorage).then(fetchedApiChats => { 
+                    setChats(fetchedApiChats); 
+                }).catch(err => { 
+                    console.error("Failed to fetch initial chats:", err); 
+                    setUserError("Could not load your conversations initially. " + (err as Error).message); 
+                }).finally(() => setIsLoadingChats(false)); 
+            }
+        })
+        .catch(err => { 
+            console.error("Failed to fetch user data:", err); 
+            setUserError((err as Error).message || "Failed to load dashboard data. Please try logging in again."); 
+            localStorage.removeItem("token"); 
+             if (!isSetUsernameModalOpen) router.push("/auth?error=load_failed"); 
+        }).finally(() => { 
+            if(!isSetUsernameModalOpen) setIsLoadingUser(false); 
+        });
+    }
+    return () => { 
+        if (ws.current && ws.current.readyState === WebSocket.OPEN) { 
+            ws.current.close(1000, "Dashboard unmounting"); 
+        }
+        ws.current = null; 
+    };
+  }, [connectWebSocket, isSetUsernameModalOpen, router, searchParams]); // Added dependencies
+  
+
 
   useEffect(() => { 
     if (selectedChat?.messages?.length) { 
@@ -608,7 +604,7 @@ function DashboardContent() {
     }
   };
 
-  const openChatActionModal = (action: 'delete' | 'close_chat') => { 
+  const openChatActionModal = (action: 'delete' | 'close_chat'| 'logout') => { 
     if (!selectedChat) return; 
     if (action === 'delete') { 
       setChatModalContent({ title: 'Delete Chat?', bodyText: `This will remove the chat with ${selectedChat.sender} from your view. This action may not be recoverable.`, confirmText: 'Delete', action: 'delete', isDestructive: true }); 
