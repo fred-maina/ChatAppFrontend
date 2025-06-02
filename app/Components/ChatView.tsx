@@ -2,7 +2,8 @@
 
 import React from 'react';
 import { ArrowLeft, LogOut, Trash2, SendHorizontal, UserCircle } from 'lucide-react';
-import { Chat, ChatMessage } from '../types'; // Import types
+import { Chat } from '../types'; // Import types
+import Image from 'next/image';
 
 interface ChatViewProps {
   chat: Chat;
@@ -11,7 +12,7 @@ interface ChatViewProps {
   setNewMessage: React.Dispatch<React.SetStateAction<string>>;
   messagesEndRef: React.RefObject<HTMLDivElement | null>; // Added
   onBack: () => void; // Added for mobile navigation
-  onOpenModal: (action: 'delete' | 'logout') => void; // Added
+  onOpenModal: (action: 'delete' | 'logout' | 'close_chat') => void;
 }
 
 const ChatView: React.FC<ChatViewProps> = ({
@@ -43,7 +44,7 @@ const ChatView: React.FC<ChatViewProps> = ({
             <ArrowLeft size={22} />
           </button>
           {chat.avatar ? (
-            <img src={chat.avatar} alt={chat.sender} className="w-10 h-10 rounded-full object-cover"/>
+            <Image src={chat.avatar} alt={chat.sender} className="w-10 h-10 rounded-full object-cover"/>
           ) : (
             <UserCircle size={36} className="text-gray-400" />
           )}
