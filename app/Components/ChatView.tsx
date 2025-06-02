@@ -1,3 +1,4 @@
+// app/Components/ChatView.tsx
 "use client";
 
 import React from 'react';
@@ -44,7 +45,13 @@ const ChatView: React.FC<ChatViewProps> = ({
             <ArrowLeft size={22} />
           </button>
           {chat.avatar ? (
-            <Image src={chat.avatar} alt={chat.sender} className="w-10 h-10 rounded-full object-cover"/>
+            <Image
+                src={chat.avatar}
+                alt={chat.sender}
+                width={40} // Added width property
+                height={40} // Added height property
+                className="w-10 h-10 rounded-full object-cover"
+            />
           ) : (
             <UserCircle size={36} className="text-gray-400" />
           )}
@@ -75,7 +82,7 @@ const ChatView: React.FC<ChatViewProps> = ({
       </header>
 
       {/* Messages Area */}
-      <div className="flex-grow p-4 space-y-4 overflow-y-auto bg-white"> {/* Changed bg-black to bg-white */}
+      <div className="flex-grow p-4 space-y-4 overflow-y-auto bg-white">
         {chat.messages.map((msg) => (
           <div key={msg.id} className={`flex ${msg.sender === 'self' ? 'justify-end' : 'justify-start'}`}>
             <div
@@ -96,7 +103,7 @@ const ChatView: React.FC<ChatViewProps> = ({
             </div>
           </div>
         ))}
-        <div ref={messagesEndRef} /> {/* For auto-scrolling */}
+        <div ref={messagesEndRef} />
       </div>
 
       {/* Message Input */}

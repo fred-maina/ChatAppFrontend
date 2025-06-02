@@ -45,7 +45,13 @@ const SidebarContent: React.FC<SidebarContentProps> = ({
           >
             <div className="flex-shrink-0 mr-3">
               {chat.avatar ? (
-                <Image src={chat.avatar} alt={chat.sender} className="w-10 h-10 rounded-full object-cover" />
+                <Image 
+                    src={chat.avatar} 
+                    alt={chat.sender} 
+                    width={40} // Added width property
+                    height={40} // Added height property
+                    className="w-10 h-10 rounded-full object-cover" 
+                />
               ) : (
                 <UserCircle
                   size={40}
