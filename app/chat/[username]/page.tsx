@@ -1,7 +1,7 @@
 // app/chat/[username]/page.tsx
 "use client";
 
-import { useState, useEffect, FormEvent, useRef, useCallback } from 'react'; // Added useCallback
+import { useState, useEffect, FormEvent, useRef, useCallback } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { Send, UserPlus, MessageSquareText, AlertTriangle, Loader2, VenetianMask, Frown, BellDot } from 'lucide-react';
@@ -64,20 +64,20 @@ interface UsernameCheckResponse {
 }
 
 const AnonHeader = ({ showCreateLink = true }: { showCreateLink?: boolean }) => (
-  <header className="py-4 px-6 md:px-10 shadow-sm bg-white sticky top-0 z-40">
+  <header className="py-3 px-4 md:px-6 shadow-sm bg-white sticky top-0 z-40">
     <div className="container mx-auto flex justify-between items-center">
       <Link href="/" className="flex items-center space-x-2 cursor-pointer">
-        <MessageSquareText className="h-8 w-8 text-teal-500" />
-        <span className="text-xl font-semibold text-gray-700 hidden sm:block">AnonMsg</span>
+        <MessageSquareText className="h-7 w-7 text-teal-500" />
+        <span className="text-lg font-semibold text-gray-700 hidden sm:block">AnonMsg</span>
       </Link>
       {showCreateLink && (
         <Link
           href="/auth?view=signup"
           target="_blank"
           rel="noopener noreferrer"
-          className="bg-teal-500 hover:bg-teal-600 text-white font-medium py-2 px-5 rounded-lg transition duration-300 ease-in-out transform hover:scale-105 flex items-center space-x-2 text-sm"
+          className="bg-teal-500 hover:bg-teal-600 text-white font-medium py-2 px-4 rounded-lg text-sm transition duration-300 ease-in-out transform hover:scale-105 flex items-center space-x-2"
         >
-          <UserPlus size={18} />
+          <UserPlus size={16} />
           <span>Create Your Own Chat</span>
         </Link>
       )}
@@ -101,22 +101,22 @@ const UsernameModalComponent: React.FC<UsernameModalProps> = ({
   recipientUsername
 }) => (
   <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
-    <div className="bg-white p-6 rounded-xl shadow-2xl w-full max-w-sm transform transition-all">
-      <div className="flex items-start justify-between mb-5">
-        <h3 className="text-xl font-semibold text-gray-800 flex items-center">
-          <VenetianMask size={24} className="mr-2 text-teal-500" /> Choose Your Alias
+    <div className="bg-white p-5 rounded-xl shadow-2xl w-full max-w-sm transform transition-all">
+      <div className="flex items-start justify-between mb-4">
+        <h3 className="text-lg font-semibold text-gray-800 flex items-center">
+          <VenetianMask size={22} className="mr-2 text-teal-500" /> Choose Your Alias
         </h3>
       </div>
-      <p className="text-sm text-gray-600 mb-4">
+      <p className="text-sm text-gray-600 mb-3">
         Pick a temporary display name for this chat. This is how <span className="font-semibold text-teal-600">{recipientUsername}</span> will see your messages. This alias will be remembered for 24 hours on this browser.
       </p>
-      <form onSubmit={handleSetUsername} className="space-y-4">
+      <form onSubmit={handleSetUsername} className="space-y-3">
         <input
           type="text"
           value={tempSenderDisplayName}
           onChange={(e) => setTempSenderDisplayName(e.target.value)}
           placeholder="Enter an alias or use random"
-          className="w-full border border-gray-300 px-3 py-2.5 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500 transition-colors"
+          className="w-full border border-gray-300 px-3 py-2 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500 transition-colors"
           maxLength={30}
           autoFocus
         />
@@ -124,13 +124,13 @@ const UsernameModalComponent: React.FC<UsernameModalProps> = ({
           <button
             type="button"
             onClick={handleUseRandomName}
-            className="w-full sm:w-auto flex-grow px-4 py-2.5 rounded-lg border border-teal-500 text-teal-600 font-medium hover:bg-teal-50 focus:outline-none transition-colors text-sm"
+            className="w-full sm:w-auto flex-grow px-3 py-2 rounded-lg border border-teal-500 text-teal-600 font-medium hover:bg-teal-50 focus:outline-none transition-colors text-sm"
           >
             Use Random Name
           </button>
           <button
             type="submit"
-            className="w-full sm:w-auto flex-grow px-4 py-2.5 rounded-lg bg-teal-600 hover:bg-teal-700 text-white font-medium focus:outline-none transition-colors text-sm"
+            className="w-full sm:w-auto flex-grow px-3 py-2 rounded-lg bg-teal-600 hover:bg-teal-700 text-white font-medium focus:outline-none transition-colors text-sm"
           >
             Set Name & Chat
           </button>
@@ -383,7 +383,7 @@ export default function AnonymousChatPage() {
           const messageTimestamp = messagePayload.timestamp ? new Date(messagePayload.timestamp) : new Date();
           const newDisplayMessage: DisplayMessage = {
             id: `reply-${messagePayload.timestamp || Date.now()}-${Math.random()}`,
-            text: messagePayload.content ?? '', // Add this part,
+            text: messagePayload.content ?? '',
             sender: validatedRecipientUsername,
             timestamp: messageTimestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
             originalTimestamp: messageTimestamp.toISOString(),
@@ -505,9 +505,8 @@ export default function AnonymousChatPage() {
       setDisplayedMessages(prev => [...prev, newDisplayMessage].sort((a,b) => new Date(a.originalTimestamp).getTime() - new Date(b.originalTimestamp).getTime()));
       setMessageText('');
       setTimeout(scrollToBottom, 0);
-    } catch (err: unknown) { // Changed 'any' to 'unknown'
+    } catch (err: unknown) {
       console.error("Error sending message via WebSocket:", err);
-      // Now, you must assert the type of 'err' before accessing its properties
       if (err instanceof Error) {
         setPageError(err.message || 'An unexpected error occurred while sending.');
       } else {
@@ -519,21 +518,21 @@ export default function AnonymousChatPage() {
   };
 
   const AdvertPanel = () => (
-    <div className="w-full bg-teal-600 text-white shadow-xl rounded-2xl p-6 md:p-8 text-center">
-        <UserPlus className="w-12 h-12 text-teal-200 mx-auto mb-3" />
-        <h2 className="text-xl md:text-2xl font-semibold mb-2">Want to Receive Your Own Anonymous Messages?</h2>
-        <p className="text-teal-100 mb-6 text-sm md:text-base">
+    <div className="w-full bg-teal-600 text-white shadow-xl rounded-xl p-5 text-center">
+        <UserPlus className="w-10 h-10 text-teal-200 mx-auto mb-2" />
+        <h2 className="text-lg md:text-xl font-semibold mb-2">Want to Receive Your Own Anonymous Messages?</h2>
+        <p className="text-teal-100 mb-4 text-sm">
         Create a free AnonMsg account to get your unique chat link. Share it with friends, on social media, or anywhere to see what people *really* think!
         </p>
         <Link
             href="/auth?view=signup"
             target="_blank"
             rel="noopener noreferrer"
-            className="bg-white text-teal-600 font-bold py-2.5 px-8 rounded-lg text-base transition duration-300 ease-in-out transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-teal-300 focus:ring-opacity-75"
+            className="bg-white text-teal-600 font-bold py-2 px-6 rounded-lg text-sm transition duration-300 ease-in-out transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-teal-300 focus:ring-opacity-75"
         >
             Create Your Free Account
         </Link>
-        <p className="text-xs text-teal-200 mt-4">
+        <p className="text-xs text-teal-200 mt-3">
         It&apos;s fast, easy, and opens up a world of honest conversations.
         </p>
     </div>
@@ -544,11 +543,11 @@ export default function AnonymousChatPage() {
     return (
       <div className="min-h-screen flex flex-col bg-gray-100 font-['Inter',_sans-serif]">
         <AnonHeader showCreateLink={false} />
-        <main className="flex-grow container mx-auto py-20 px-4 flex flex-col items-center justify-center text-center">
-          <Loader2 size={48} className="animate-spin text-teal-500 mb-4" />
-          <p className="text-lg text-gray-600">Verifying user <span className="font-semibold">{initialRecipientUsername}</span>...</p>
+        <main className="flex-grow container mx-auto py-16 px-4 flex flex-col items-center justify-center text-center">
+          <Loader2 size={40} className="animate-spin text-teal-500 mb-3" />
+          <p className="text-base text-gray-600">Verifying user <span className="font-semibold">{initialRecipientUsername}</span>...</p>
         </main>
-         <footer className="bg-gray-800 text-gray-400 py-8 px-6 md:px-10 text-center text-sm mt-auto">
+         <footer className="bg-gray-800 text-gray-400 py-6 px-4 md:px-6 text-center text-xs mt-auto">
             <div className="container mx-auto">
                 <p>&copy; {new Date().getFullYear()} AnonMsg. All rights reserved.</p>
             </div>
@@ -561,22 +560,22 @@ export default function AnonymousChatPage() {
     return (
       <div className="min-h-screen flex flex-col bg-gray-100 font-['Inter',_sans-serif]">
         <AnonHeader />
-        <main className="flex-grow container mx-auto py-16 px-4 flex flex-col items-center justify-center text-center">
-          <Frown size={64} className="text-yellow-500 mb-6" />
-          <h1 className="text-3xl font-bold text-gray-800 mb-3">User Not Found</h1>
-          <p className="text-gray-600 mb-2 max-w-md">
+        <main className="flex-grow container mx-auto py-12 px-4 flex flex-col items-center justify-center text-center">
+          <Frown size={56} className="text-yellow-500 mb-5" />
+          <h1 className="text-2xl font-bold text-gray-800 mb-2">User Not Found</h1>
+          <p className="text-gray-600 mb-2 max-w-md text-sm">
             The user <strong className="text-teal-600">{initialRecipientUsername}</strong> could not be found.
           </p>
-          <p className="text-gray-500 mb-8 max-w-md">
+          <p className="text-gray-500 mb-6 max-w-md text-sm">
             {pageError || "The link might be broken, or the user may have changed their username or deleted their account."}
           </p>
           <Link href="/" passHref>
-            <button className="bg-teal-500 hover:bg-teal-600 text-white font-semibold py-2.5 px-6 rounded-lg transition-colors">
+            <button className="bg-teal-500 hover:bg-teal-600 text-white font-semibold py-2 px-5 rounded-lg text-sm transition-colors">
               Back to Homepage
             </button>
           </Link>
         </main>
-         <footer className="bg-gray-800 text-gray-400 py-8 px-6 md:px-10 text-center text-sm mt-auto">
+         <footer className="bg-gray-800 text-gray-400 py-6 px-4 md:px-6 text-center text-xs mt-auto">
             <div className="container mx-auto">
                 <p>&copy; {new Date().getFullYear()} AnonMsg. All rights reserved.</p>
             </div>
@@ -591,7 +590,7 @@ export default function AnonymousChatPage() {
       <div className="min-h-screen flex flex-col bg-gray-100 font-['Inter',_sans-serif]">
         <AnonHeader />
          <main className="flex-grow container mx-auto py-8 px-4 text-center">
-            <p className="text-lg text-gray-600 p-10">Loading chat setup...</p>
+            <p className="text-base text-gray-600 p-8">Loading chat setup...</p>
         </main>
         <UsernameModalComponent
             tempSenderDisplayName={tempSenderDisplayName}
@@ -600,7 +599,7 @@ export default function AnonymousChatPage() {
             handleUseRandomName={handleUseRandomNameInternal}
             recipientUsername={validatedRecipientUsername}
         />
-        <footer className="bg-gray-800 text-gray-400 py-8 px-6 md:px-10 text-center text-sm mt-auto">
+        <footer className="bg-gray-800 text-gray-400 py-6 px-4 md:px-6 text-center text-xs mt-auto">
             <div className="container mx-auto">
                 <p>&copy; {new Date().getFullYear()} AnonMsg. All rights reserved.</p>
                  <p className="mt-1">Remember to be respectful. Do not use this service for harassment.</p>
@@ -625,39 +624,39 @@ export default function AnonymousChatPage() {
             />
         )}
 
-        <main className="flex-grow container mx-auto flex flex-col px-4 pt-4 pb-20 md:px-6 relative">
+        <main className="flex-grow container mx-auto flex flex-col px-4 pt-4 pb-4 md:px-6 relative">
           {pageError && (
-            <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-lg relative mb-4 flex items-center text-sm" role="alert">
-              <AlertTriangle className="h-5 w-5 mr-3" />
+            <div className="bg-red-100 border border-red-400 text-red-700 px-3 py-2 rounded-lg relative mb-3 flex items-center text-sm" role="alert">
+              <AlertTriangle className="h-4 w-4 mr-2" />
               <span>{pageError}</span>
-              <button onClick={() => setPageError(null)} className="absolute top-0 bottom-0 right-0 px-4 py-3 text-red-500">
-                <svg className="fill-current h-6 w-6" role="button" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><title>Close</title><path d="M14.348 14.849a1.2 1.2 0 0 1-1.697 0L10 11.697l-2.651 3.152a1.2 1.2 0 1 1-1.697-1.697L8.303 10 5.152 7.348a1.2 1.2 0 1 1 1.697-1.697L10 8.303l2.651-3.152a1.2 1.2 0 1 1 1.697 1.697L11.697 10l3.152 2.651a1.2 1.2 0 0 1 0 1.697z"/></svg>
+              <button onClick={() => setPageError(null)} className="absolute top-0 bottom-0 right-0 px-3 py-2 text-red-500">
+                <svg className="fill-current h-5 w-5" role="button" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><title>Close</title><path d="M14.348 14.849a1.2 1.2 0 0 1-1.697 0L10 11.697l-2.651 3.152a1.2 1.2 0 1 1-1.697-1.697L8.303 10 5.152 7.348a1.2 1.2 0 1 1 1.697-1.697L10 8.303l2.651-3.152a1.2 1.2 0 1 1 1.697 1.697L11.697 10l3.152 2.651a1.2 1.2 0 0 1 0 1.697z"/></svg>
               </button>
             </div>
           )}
 
-          <h1 className="text-2xl md:text-3xl font-bold text-gray-800 text-center mb-6">
+          <h1 className="text-xl md:text-2xl font-bold text-gray-800 text-center mb-5">
             Chatting with <span className="text-teal-600">{validatedRecipientUsername}</span>
           </h1>
 
-          <div className="flex-grow flex flex-col bg-white rounded-lg shadow-xl p-4 md:p-6 mb-6 overflow-hidden">
-            <div className="flex-grow overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100 px-2 py-1">
+          <div className="flex-grow flex flex-col bg-white rounded-lg shadow-xl p-4 mb-4 overflow-hidden">
+            <div className="flex-grow overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100 px-1 py-1">
               {isHistoryLoading && (
                 <div className="flex justify-center items-center h-20 text-teal-500">
-                  <Loader2 className="animate-spin mr-2" size={20} /> Loading messages...
+                  <Loader2 className="animate-spin mr-2" size={18} /> Loading messages...
                 </div>
               )}
               {!isHistoryLoading && displayedMessages.length === 0 && (
-                <div className="text-center text-gray-500 py-10">
-                  <MessageSquareText className="w-12 h-12 mx-auto text-gray-400 mb-3" />
-                  <p>No messages yet. Send the first anonymous message!</p>
-                  <p className="text-sm mt-2">Your alias: <span className="font-semibold text-teal-600">{finalSenderDisplayName}</span></p>
+                <div className="text-center text-gray-500 py-8">
+                  <MessageSquareText className="w-10 h-10 mx-auto text-gray-400 mb-2" />
+                  <p className="text-sm">No messages yet. Send the first anonymous message!</p>
+                  <p className="text-xs mt-1">Your alias: <span className="font-semibold text-teal-600">{finalSenderDisplayName}</span></p>
                   {notificationPermission !== 'granted' && (
                     <button
                         onClick={requestNotificationPermission}
-                        className="mt-4 bg-teal-500 hover:bg-teal-600 text-white text-sm font-medium py-2 px-4 rounded-lg flex items-center mx-auto transition-colors"
+                        className="mt-3 bg-teal-500 hover:bg-teal-600 text-white text-xs font-medium py-1.5 px-3 rounded-lg flex items-center mx-auto transition-colors"
                     >
-                        <BellDot size={16} className="mr-2" /> Enable Reply Notifications
+                        <BellDot size={14} className="mr-1.5" /> Enable Reply Notifications
                     </button>
                   )}
                 </div>
@@ -666,10 +665,10 @@ export default function AnonymousChatPage() {
               {displayedMessages.map((msg, index) => (
                 <div
                   key={msg.id || index}
-                  className={`flex mb-3 ${msg.isReply ? 'justify-start' : 'justify-end'}`}
+                  className={`flex mb-2 ${msg.isReply ? 'justify-start' : 'justify-end'}`}
                 >
                   <div
-                    className={`max-w-[75%] px-4 py-2 rounded-xl text-white shadow ${
+                    className={`max-w-[70%] px-3 py-2 rounded-xl text-white shadow-sm ${
                       msg.isReply
                         ? 'bg-gray-700 rounded-bl-none'
                         : 'bg-teal-500 rounded-br-none'
@@ -689,35 +688,35 @@ export default function AnonymousChatPage() {
             </div>
           </div>
 
-          <form onSubmit={handleSubmitMessage} className="flex-shrink-0 bg-white p-4 rounded-lg shadow-md flex items-center">
+          <form onSubmit={handleSubmitMessage} className="flex-shrink-0 bg-white p-3 rounded-lg shadow-md flex items-center">
             <input
               type="text"
               value={messageText}
               onChange={(e) => setMessageText(e.target.value)}
               placeholder="Type your anonymous message..."
-              className="flex-grow border border-gray-300 rounded-full px-4 py-2 mr-3 focus:outline-none focus:ring-2 focus:ring-teal-500 transition-colors text-gray-700"
+              className="flex-grow border border-gray-300 rounded-full px-3 py-2 mr-2 focus:outline-none focus:ring-2 focus:ring-teal-500 transition-colors text-gray-700 text-sm"
               disabled={isLoading || !finalSenderDisplayName || !usernameExists}
               maxLength={500}
             />
             <button
               type="submit"
-              className="bg-teal-500 hover:bg-teal-600 text-white p-3 rounded-full shadow-lg transition duration-300 ease-in-out transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-teal-500 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="bg-teal-500 hover:bg-teal-600 text-white p-2.5 rounded-full shadow transition duration-300 ease-in-out transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-teal-500 disabled:opacity-50 disabled:cursor-not-allowed"
               disabled={isLoading || !messageText.trim() || !finalSenderDisplayName || !usernameExists}
             >
               {isLoading ? (
-                <Loader2 className="animate-spin h-5 w-5" />
+                <Loader2 className="animate-spin h-4 w-4" />
               ) : (
-                <Send className="h-5 w-5" />
+                <Send className="h-4 w-4" />
               )}
             </button>
           </form>
 
-          <div className="mt-8">
+          <div className="mt-6">
             <AdvertPanel />
           </div>
         </main>
 
-        <footer className="bg-gray-800 text-gray-400 py-8 px-6 md:px-10 text-center text-sm mt-auto">
+        <footer className="bg-gray-800 text-gray-400 py-6 px-4 md:px-6 text-center text-xs mt-auto">
           <div className="container mx-auto">
             <p>&copy; {new Date().getFullYear()} AnonMsg. All rights reserved.</p>
             <p className="mt-1">Remember to be respectful. Do not use this service for harassment.</p>
