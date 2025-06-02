@@ -131,7 +131,7 @@ const PrivacyPolicyContent = () => (
 
     <h5 className="text-md font-semibold text-gray-700 mt-4 mb-2">Contact Us</h5>
     <p className="mb-3">
-      If you have any questions about this Privacy Policy, You can contact us: [Provide a way to contact, e.g., by email: privacy@anonmsg.com - MAKE THIS UP FOR NOW]
+      If you have any questions about this Privacy Policy, You can contact us: info@anonmsg.fredmaina.com
     </p>
   </>
 );
