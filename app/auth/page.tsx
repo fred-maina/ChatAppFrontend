@@ -1,88 +1,107 @@
+// app/auth/page.tsx
 "use client";
 
 import { useState } from "react";
-import SignupForm from "../Components/SignUp";
-import SigninForm from "../Components/SignIn";
-import { GoogleLoginButton } from "../Components/GoogleLoginButton";
+import { GoogleLoginButton } from "../Components/GoogleLoginButton"; //
 import Image from "next/image";
-import { UserPlus, LogIn } from "lucide-react"; // Added icons for tabs
+import Link from "next/link";
+import { MessageSquareText, ShieldCheck } from "lucide-react";
+import LegalModal from "../Components/LegalModal"; //
+import TermsAndConditionsContent from "../Components/TermsAndConditionsContent"; //
+import PrivacyPolicyContent from "../Components/PrivacyPolicyContent"; //
+
+const MASK_IMAGE_URL = "/images/mask.png";
+const YOUR_APP_NAME = "AnonMsg";
 
 export default function AuthPage() {
-  const [isSignup, setIsSignup] = useState(true);
+  const [isLegalModalOpen, setIsLegalModalOpen] = useState(false);
+  const [legalModalContent, setLegalModalContent] = useState<React.ReactNode>(null);
+  const [legalModalTitle, setLegalModalTitle] = useState("");
+
+  const openTermsModal = () => {
+    setLegalModalTitle("Terms and Conditions");
+    setLegalModalContent(<TermsAndConditionsContent />); //
+    setIsLegalModalOpen(true);
+  };
+
+  const openPrivacyModal = () => {
+    setLegalModalTitle("Privacy Policy");
+    setLegalModalContent(<PrivacyPolicyContent />); //
+    setIsLegalModalOpen(true);
+  };
 
   return (
-    <div className="min-h-screen w-full bg-gray-100 flex items-center justify-center p-4">
-      <div className="w-full max-w-4xl bg-white shadow-xl rounded-2xl overflow-hidden grid grid-cols-1 md:grid-cols-2">
-        {/* Left Side: Forms */}
-        <div className="p-8 md:p-10 flex flex-col justify-center relative"> {/* Simplified background, increased padding */}
-          {/* Top Tab Switcher */}
-          <div className="flex w-full mb-8 rounded-lg overflow-hidden text-center font-medium shadow-sm border border-gray-200">
-            <div
-              onClick={() => setIsSignup(true)}
-              className={`w-1/2 py-3 cursor-pointer transition-colors duration-200 ease-in-out flex items-center justify-center space-x-2 ${
-                isSignup
-                  ? "bg-teal-500 text-white"
-                  : "bg-gray-50 text-gray-600 hover:bg-gray-100 hover:text-teal-600"
-              }`}
-            >
-              <UserPlus size={18} />
-              <span>Sign Up</span>
+    <>
+      <div className="min-h-screen w-full bg-gray-100 flex items-center justify-center p-4 font-['Inter',_sans-serif]">
+        <div className="w-full max-w-xl bg-white shadow-2xl rounded-xl overflow-hidden">
+          <div className="p-8 md:p-12">
+            <Link href="/" className="flex items-center justify-center space-x-2 mb-8 cursor-pointer group" passHref>
+              <MessageSquareText className="h-10 w-10 text-teal-500 transition-transform duration-300 group-hover:scale-110" />
+              <span className="text-3xl font-bold text-gray-700 group-hover:text-teal-600 transition-colors">{YOUR_APP_NAME}</span>
+            </Link>
+
+            <div className="flex justify-center mb-8">
+              <div className="relative w-32 h-32 md:w-40 md:h-40">
+                  <Image
+                      src={MASK_IMAGE_URL}
+                      alt="AnonMsg Mask"
+                      layout="fill"
+                      objectFit="contain"
+                      className="animate-slowPulse"
+                      priority 
+                  />
+              </div>
             </div>
-            <div
-              onClick={() => setIsSignup(false)}
-              className={`w-1/2 py-3 cursor-pointer transition-colors duration-200 ease-in-out flex items-center justify-center space-x-2 ${
-                !isSignup
-                  ? "bg-teal-500 text-white"
-                  : "bg-gray-50 text-gray-600 hover:bg-gray-100 hover:text-teal-600"
-              }`}
-            >
-              <LogIn size={18} />
-              <span>Sign In</span>
+            
+            <h1 className="text-2xl md:text-3xl font-bold text-center text-gray-800 mb-3">
+              Join or Sign in to {YOUR_APP_NAME}
+            </h1>
+            <p className="text-sm text-gray-500 text-center mb-8">
+              Connect securely with Google to start sending and receiving anonymous messages.
+            </p>
+
+            <div className="mb-6">
+              <GoogleLoginButton mode={"connect"} /> {/* Changed mode to "connect" */}
             </div>
-          </div>
-
-          {/* Heading */}
-          <h1 className="text-3xl font-bold text-center text-gray-800 mb-2">
-            {isSignup ? "Create Your Account" : "Welcome Back"}
-          </h1>
-          <p className="text-sm text-gray-500 text-center mb-6">
-            {isSignup
-              ? "Get started by creating your AnonMsg account."
-              : "Sign in to access your dashboard and chats."}
-          </p>
-
-          {/* Google Auth Button */}
-          <div className="mb-6">
-            <GoogleLoginButton mode={isSignup ? "signup" : "signin"} />
-          </div>
-          
-
-          {/* Divider */}
-          <div className="flex items-center my-2">
-            <hr className="flex-grow border-t border-gray-300" />
-            <p className="mx-3 text-xs text-gray-400 uppercase">Or</p>
-            <hr className="flex-grow border-t border-gray-300" />
-          </div>
-          
-          {/* Form Directly Rendered */}
-          <div className="mt-6"> {/* Added margin top for spacing */}
-            {isSignup ? <SignupForm /> : <SigninForm />}
+            
+            <div className="text-center text-xs text-gray-500">
+              <p className="mb-2">
+                By continuing, you agree to AnonMsg's{" "}
+                <button
+                  onClick={openTermsModal}
+                  className="text-teal-600 hover:text-teal-700 hover:underline font-medium"
+                >
+                  Terms of Service
+                </button>
+                {" "}and acknowledge our{" "}
+                <button
+                  onClick={openPrivacyModal}
+                  className="text-teal-600 hover:text-teal-700 hover:underline font-medium"
+                >
+                  Privacy Policy
+                </button>.
+              </p>
+              <ShieldCheck className="inline-block h-4 w-4 text-green-500 mr-1" />
+              <span>Your privacy is important to us.</span>
+            </div>
           </div>
         </div>
-
-        {/* Right Side: Image */}
-        <div className="hidden md:block relative">
-          <Image
-            src="https://images.unsplash.com/photo-1508780709619-79562169bc64?auto=format&fit=crop&w=987&q=80" //
-            alt="Abstract background representing authentication or security"
-            layout="fill"
-            objectFit="cover"
-            className="rounded-r-2xl" // Ensure this is only applied if it's the rightmost element of the card
-            priority // Good for LCP elements
-          />
-           <div className="absolute inset-0 bg-gradient-to-br from-teal-500/30 via-sky-500/30 to-purple-600/30"></div> {/* Subtle overlay on image */}
-        </div>
+        <style jsx global>{`
+          @keyframes slowPulse {
+            0%, 100% { transform: scale(1); opacity: 1; }
+            50% { transform: scale(1.05); opacity: 0.9; }
+          }
+          .animate-slowPulse {
+            animation: slowPulse 6s infinite ease-in-out;
+          }
+        `}</style>
       </div>
-    </div>
+      <LegalModal
+        isOpen={isLegalModalOpen}
+        onClose={() => setIsLegalModalOpen(false)}
+        title={legalModalTitle}
+        content={legalModalContent}
+      />
+    </>
   );
 }
