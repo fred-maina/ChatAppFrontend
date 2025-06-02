@@ -4,6 +4,7 @@
 import React from 'react';
 import { UserCircle, MessageSquareText } from 'lucide-react'; 
 import { Chat } from '../types'; 
+import Image from 'next/image';
 
 interface SidebarContentProps {
   chats: Chat[];
@@ -44,7 +45,7 @@ const SidebarContent: React.FC<SidebarContentProps> = ({
           >
             <div className="flex-shrink-0 mr-3">
               {chat.avatar ? (
-                <img src={chat.avatar} alt={chat.sender} className="w-10 h-10 rounded-full object-cover" />
+                <Image src={chat.avatar} alt={chat.sender} className="w-10 h-10 rounded-full object-cover" />
               ) : (
                 <UserCircle
                   size={40}
@@ -77,7 +78,7 @@ const SidebarContent: React.FC<SidebarContentProps> = ({
         <div className="text-center text-gray-500 py-12 px-4">
           <MessageSquareText size={48} className="mx-auto mb-3 text-gray-400" />
           <h3 className="font-semibold text-lg text-gray-600 mb-1">No Chats Yet</h3>
-          <p className="text-sm">When you have conversations, they'll appear here.</p>
+          <p className="text-sm">When you have conversations, they&apos;ll appear here.</p>
         </div>
       )}
     </div>
