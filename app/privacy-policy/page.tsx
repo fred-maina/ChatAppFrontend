@@ -29,9 +29,7 @@ const PrivacyPolicyPage = () => {
           </div>
 
           <div className="text-gray-700 space-y-4 prose prose-teal max-w-none">
-            <p className="font-semibold text-red-600">
-              DISCLAIMER: This is a sample Privacy Policy. You should consult with a legal professional to ensure this policy is appropriate for your specific needs and complies with all applicable laws, including GDPR, CCPA, etc.
-            </p>
+         
             <p><strong>Last Updated:</strong> {new Date().toLocaleDateString()}</p>
             {/* Use the imported PrivacyPolicyContent component */}
             <PrivacyPolicyContent />
