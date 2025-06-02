@@ -3,13 +3,11 @@ import React from 'react';
 
 const TermsAndConditionsContent = () => (
   <>
-    <p className="font-semibold text-red-600">
-      DISCLAIMER: This is a sample Terms and Conditions agreement. You should consult with a legal professional to ensure this policy is appropriate for your specific needs and complies with all applicable laws.
-    </p>
+ 
 
     <p><strong>Last Updated:</strong> {new Date().toLocaleDateString()}</p>
 
-    <p>Welcome to AnonMsg! These terms and conditions outline the rules and regulations for the use of AnonMsg's Website, located at [Your Website URL].</p>
+    <p>Welcome to AnonMsg! These terms and conditions outline the rules and regulations for the use of AnonMsg's Website, located at anonmsg.fredmaina.com .</p>
 
     <p>By accessing this website we assume you accept these terms and conditions. Do not continue to use AnonMsg if you do not agree to take all of the terms and conditions stated on this page.</p>
 
@@ -63,7 +61,7 @@ const TermsAndConditionsContent = () => (
     <p>We reserve the right, at our sole discretion, to modify or replace these Terms at any time. If a revision is material we will try to provide at least 30 days' notice prior to any new terms taking effect. What constitutes a material change will be determined at our sole discretion.</p>
 
     <h4 className="font-semibold text-md mt-2">9. Contact Us</h4>
-    <p>If you have any questions about these Terms, please contact us at [Your Contact Email Address].</p>
+    <p>If you have any questions about these Terms, please contact us at info@anonmsg.fredmaina.com</p>
   </>
 );
 
