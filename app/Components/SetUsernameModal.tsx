@@ -138,7 +138,7 @@ const SetUsernameModal: React.FC<SetUsernameModalProps> = ({
         clearTimeout(debounceTimeoutRef.current);
       }
     };
-  }, [username, currentUsername, token]);
+  }, [username, currentUsername, token,lastCheckedUsername]);
 
 
   const handleSubmit = async (e: React.FormEvent) => {
