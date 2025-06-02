@@ -2,9 +2,9 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
+import Image from 'next/image';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation'; 
-import { Send, MessageSquareText, UserPlus, Menu, X, ShieldCheck, EyeOff, Link2 as Link2IconLucide, Users, MessageCircleQuestion, Sparkles, Gift, CheckCircle, Coffee, LogIn, LayoutDashboard } from 'lucide-react';
+import { Send, MessageSquareText, UserPlus, Menu, X, EyeOff, Link2 as Link2IconLucide,CheckCircle, Coffee, LogIn, LayoutDashboard } from 'lucide-react';
 import LegalModal from './Components/LegalModal'; //
 import TermsAndConditionsContent from './Components/TermsAndConditionsContent'; //
 import PrivacyPolicyContent from './Components/PrivacyPolicyContent'; //
@@ -68,7 +68,6 @@ const LandingPage = () => {
 
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [isLoadingUser, setIsLoadingUser] = useState(true);
-  const router = useRouter();
 
   useEffect(() => {
     const token = localStorage.getItem("token");
@@ -146,7 +145,7 @@ const LandingPage = () => {
         </header>
         <main className="text-center">
             <div className="relative mb-8">
-                <img 
+                <Image
                     src={MASK_IMAGE_URL} 
                     alt="AnonMsg Mask"
                     width={224} 
@@ -242,7 +241,7 @@ const LandingPage = () => {
             <div className="w-full md:w-1/2 lg:w-2/5 mb-10 md:mb-0 flex justify-center order-1 md:order-2">
               <div className="relative group">
               <div className="w-48 h-48 sm:w-56 sm:h-56 md:w-80 md:h-80 lg:w-96 lg:h-96 rounded-full shadow-2xl border-4 border-white/20 animate-slowPulse overflow-hidden">
-                  <img 
+                  <Image
                       src={MASK_IMAGE_URL} 
                       alt="Symbol of anonymity"
                       className="w-full h-full object-cover" 
@@ -260,7 +259,7 @@ const LandingPage = () => {
               </p>
               <blockquote className="mb-10 border-l-4 border-teal-300 pl-4 italic animate-fadeInDown animation-delay-500">
                 <p className="text-xl lg:text-2xl leading-relaxed text-gray-100">
-                  "Man is least himself when he talks in his own person. Give him a mask, and he will tell you the truth."
+                  &quot;Man is least himself when he talks in his own person. Give him a mask, and he will tell you the truth.&quot;
                 </p>
                 <footer className="mt-2 text-md text-teal-200 font-medium">
                   - Oscar Wilde
