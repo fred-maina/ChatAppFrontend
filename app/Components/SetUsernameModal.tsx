@@ -1,16 +1,22 @@
 // app/Components/SetUsernameModal.tsx
 "use client";
 
-import React, { useState, useEffect } from 'react';
-import { X, CheckCircle, AlertTriangle } from 'lucide-react'; // Using existing icons
+import React, { useState, useEffect, useRef } from 'react';
+import { X, CheckCircle, AlertTriangle, Loader2 } from 'lucide-react';
 
 interface SetUsernameModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onUsernameSet: (newUsername: string) => void; // Callback after successful username setting
-  email: string | null; // User's email to associate with the username
-  currentUsername: string | null | undefined; // Pass current username if available
-  token: string | null; // Auth token for API call
+  onUsernameSet: (newUsername: string) => void;
+  email: string | null;
+  currentUsername: string | null | undefined;
+  token: string | null;
+}
+
+interface UsernameCheckResponse {
+  success: boolean;
+  exists: boolean;
+  message?: string;
 }
 
 const SetUsernameModal: React.FC<SetUsernameModalProps> = ({
@@ -22,19 +28,118 @@ const SetUsernameModal: React.FC<SetUsernameModalProps> = ({
   token
 }) => {
   const [username, setUsername] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(false); // For submission
+  const [error, setError] = useState<string | null>(null); // For submission error
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+
+  // For debounced username availability check
+  const [isCheckingUsername, setIsCheckingUsername] = useState(false);
+  const [usernameCheckMessage, setUsernameCheckMessage] = useState<string | null>(null);
+  const [isUsernameAvailable, setIsUsernameAvailable] = useState<boolean | null>(null);
+  const [lastCheckedUsername, setLastCheckedUsername] = useState<string | null>(null);
+
+  const debounceTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
     if (currentUsername) {
       setUsername(currentUsername);
+      // If it's the user's current username, assume it's "available" to them for re-submission
+      setIsUsernameAvailable(true);
+      setLastCheckedUsername(currentUsername);
     } else {
-      setUsername(''); // Reset if modal is reopened for a new attempt or different user context
+      setUsername('');
+      setIsUsernameAvailable(null);
+      setLastCheckedUsername(null);
     }
-    setError(null); // Reset error on open/close or prop change
+    setError(null);
     setSuccessMessage(null);
+    setUsernameCheckMessage(null);
   }, [isOpen, currentUsername, email]);
+
+
+  // Debounced username check
+  useEffect(() => {
+    if (debounceTimeoutRef.current) {
+      clearTimeout(debounceTimeoutRef.current);
+    }
+
+    // Reset availability status if username changes
+    if (username !== lastCheckedUsername) {
+        setIsUsernameAvailable(null);
+        setUsernameCheckMessage(null);
+    }
+
+    if (username.trim() === '') {
+      setUsernameCheckMessage(null);
+      setIsUsernameAvailable(null);
+      return;
+    }
+
+    if (username === currentUsername) {
+        setUsernameCheckMessage("This is your current username.");
+        setIsUsernameAvailable(true); // User can re-submit their own username
+        setLastCheckedUsername(username);
+        return;
+    }
+    
+    // Basic client-side validation before hitting API
+    if (username.length < 3 || username.length > 20) {
+      setUsernameCheckMessage("Username must be 3-20 characters.");
+      setIsUsernameAvailable(false);
+      return;
+    }
+    if (!/^[a-zA-Z0-9]+$/.test(username)) {
+      setUsernameCheckMessage("Letters and numbers only.");
+      setIsUsernameAvailable(false);
+      return;
+    }
+
+
+    debounceTimeoutRef.current = setTimeout(async () => {
+      setIsCheckingUsername(true);
+      setUsernameCheckMessage("Checking availability...");
+      setIsUsernameAvailable(null);
+
+      try {
+        const response = await fetch(`http://localhost:8080/api/auth/check-username/${encodeURIComponent(username)}`, {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+            // Add Authorization header if your check-username endpoint requires it
+            // 'Authorization': `Bearer ${token}`,
+          },
+        });
+        const data: UsernameCheckResponse = await response.json();
+
+        if (response.ok && data.success) {
+          if (data.exists) {
+            setUsernameCheckMessage("Username is already taken.");
+            setIsUsernameAvailable(false);
+          } else {
+            setUsernameCheckMessage("Username is available!");
+            setIsUsernameAvailable(true);
+            setLastCheckedUsername(username);
+          }
+        } else {
+          setUsernameCheckMessage(data.message || "Could not verify username.");
+          setIsUsernameAvailable(false);
+        }
+      } catch (err) {
+        console.error("Username check error:", err);
+        setUsernameCheckMessage("Error checking username. Try again.");
+        setIsUsernameAvailable(false);
+      } finally {
+        setIsCheckingUsername(false);
+      }
+    }, 750); // 750ms debounce time
+
+    return () => {
+      if (debounceTimeoutRef.current) {
+        clearTimeout(debounceTimeoutRef.current);
+      }
+    };
+  }, [username, currentUsername, token]);
+
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -45,29 +150,35 @@ const SetUsernameModal: React.FC<SetUsernameModalProps> = ({
       setError("Username cannot be empty.");
       return;
     }
-    // Basic validation (you can expand this)
     if (username.length < 3 || username.length > 20) {
       setError("Username must be between 3 and 20 characters.");
       return;
     }
-    // UPDATED REGEX and ERROR MESSAGE
     if (!/^[a-zA-Z0-9]+$/.test(username)) {
       setError("Username can only contain letters and numbers.");
       return;
     }
 
+    // Check against the debounced validation result
+    if (username !== lastCheckedUsername || isUsernameAvailable !== true) {
+      // If username changed after last check, or if it was marked unavailable
+      if (username !== currentUsername) { // Allow submitting if it's their current username, even if check is stale
+         setError(usernameCheckMessage || "Please ensure username is validated and available.");
+         return;
+      }
+    }
+
+
     setIsLoading(true);
 
     try {
-      // Assume your backend endpoint for setting/updating username is /api/user/set-username
-      // You'll need to adjust the endpoint and payload as per your backend API
-      const response = await fetch('http://localhost:8080/api/auth/set-username', { // REPLACE WITH YOUR ACTUAL API ENDPOINT
+      const response = await fetch('http://localhost:8080/api/auth/set-username', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`, // Send auth token
+          'Authorization': `Bearer ${token}`,
         },
-        body: JSON.stringify({ email: email, username: username }), // Send email to identify user if needed, or rely on token
+        body: JSON.stringify({ email: email, username: username }),
       });
 
       const data = await response.json();
@@ -75,10 +186,10 @@ const SetUsernameModal: React.FC<SetUsernameModalProps> = ({
       if (!response.ok || !data.success) {
         setError(data.message || 'Failed to set username. It might already be taken or invalid.');
       } else {
-        setSuccessMessage('Username set successfully!');
-        onUsernameSet(username); // Call the callback
+        setSuccessMessage(data.message ||'Username set successfully!');
+        onUsernameSet(username);
         setTimeout(() => {
-          onClose(); // Close modal on success after a short delay
+          // onClose(); // Modal will be closed by parent component logic or after redirect
         }, 1500);
       }
     } catch (err) {
@@ -120,42 +231,59 @@ const SetUsernameModal: React.FC<SetUsernameModalProps> = ({
 
 
         <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="relative">
-            <input
-              id="username_set"
-              type="text"
-              name="username"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              required
-              className={`peer w-full border ${error ? 'border-red-500' : 'border-gray-300'} px-3 py-3 rounded-lg placeholder-transparent
-                         focus:outline-none focus:ring-2 ${error ? 'focus:ring-red-500 focus:border-red-500' : 'focus:ring-teal-500 focus:border-teal-500'} transition-colors`}
-              placeholder="Choose your username"
-              disabled={isLoading}
-              maxLength={20}
-              minLength={3}
-            />
-            <label
-              htmlFor="username_set"
-              className={`absolute left-3 -top-2.5 bg-white px-1 text-xs ${error ? 'text-red-600' : 'text-gray-500'} transition-all
-                         peer-placeholder-shown:top-3.5 peer-placeholder-shown:text-base
-                         peer-focus:-top-2.5 peer-focus:text-xs ${error ? 'peer-focus:text-red-600' : 'peer-focus:text-teal-600'}`}
-            >
-              Username
-            </label>
+          <div>
+            <div className="relative">
+              <input
+                id="username_set"
+                type="text"
+                name="username"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                required
+                className={`peer w-full border ${error || (isUsernameAvailable === false && username.length > 0 && !isCheckingUsername) ? 'border-red-500' : (isUsernameAvailable === true && !isCheckingUsername ? 'border-green-500' : 'border-gray-300')} 
+                           px-3 py-3 rounded-lg placeholder-transparent
+                           focus:outline-none focus:ring-2 
+                           ${error || (isUsernameAvailable === false && username.length > 0 && !isCheckingUsername) ? 'focus:ring-red-500 focus:border-red-500' : (isUsernameAvailable === true && !isCheckingUsername ? 'focus:ring-green-500 focus:border-green-500' : 'focus:ring-teal-500 focus:border-teal-500')} 
+                           transition-colors`}
+                placeholder="Choose your username"
+                disabled={isLoading}
+                maxLength={20}
+                minLength={3}
+                autoComplete="off"
+              />
+              <label
+                htmlFor="username_set"
+                className={`absolute left-3 -top-2.5 bg-white px-1 text-xs 
+                           ${error || (isUsernameAvailable === false && username.length > 0 && !isCheckingUsername) ? 'text-red-600' : (isUsernameAvailable === true && !isCheckingUsername ? 'text-green-600' : 'text-gray-500')} 
+                           transition-all
+                           peer-placeholder-shown:top-3.5 peer-placeholder-shown:text-base
+                           peer-focus:-top-2.5 peer-focus:text-xs 
+                           ${error || (isUsernameAvailable === false && username.length > 0 && !isCheckingUsername) ? 'peer-focus:text-red-600' : (isUsernameAvailable === true && !isCheckingUsername ? 'peer-focus:text-green-600' : 'peer-focus:text-teal-600')}`}
+              >
+                Username
+              </label>
+            </div>
+            <div className="flex items-center justify-between min-h-[20px] mt-1.5">
+                <p className={`text-xs ${
+                    isCheckingUsername ? 'text-gray-500' :
+                    isUsernameAvailable === true ? 'text-green-600' :
+                    isUsernameAvailable === false && username.length > 0 ? 'text-red-600' :
+                    'text-gray-500'
+                }`}>
+                    {isCheckingUsername && <Loader2 size={14} className="inline animate-spin mr-1" />}
+                    {usernameCheckMessage || "3-20 characters, letters & numbers only."}
+                </p>
+            </div>
           </div>
-          {/* UPDATED HELPER TEXT */}
-          <p className="text-xs text-gray-500">
-            Use 3-20 characters: letters and numbers only. E.g., `cooluser123`.
-          </p>
 
-          {error && (
+
+          {error && ( // For submission errors
             <div className="flex items-center space-x-2 text-sm text-red-600 bg-red-50 p-2.5 rounded-md border border-red-200">
               <AlertTriangle size={18} className="flex-shrink-0"/>
               <span>{error}</span>
             </div>
           )}
-          {successMessage && (
+          {successMessage && ( // For submission success
              <div className="flex items-center space-x-2 text-sm text-green-600 bg-green-50 p-2.5 rounded-md border border-green-200">
               <CheckCircle size={18} className="flex-shrink-0"/>
               <span>{successMessage}</span>
@@ -173,15 +301,12 @@ const SetUsernameModal: React.FC<SetUsernameModalProps> = ({
             </button>
             <button
               type="submit"
-              disabled={isLoading || !!successMessage}
+              disabled={isLoading || isCheckingUsername || !!successMessage || isUsernameAvailable !== true}
               className="w-full sm:w-auto px-4 py-2.5 rounded-lg bg-teal-600 hover:bg-teal-700 text-white font-medium focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-offset-2 transition-colors text-sm disabled:bg-teal-300 disabled:cursor-not-allowed"
             >
               {isLoading ? (
                 <span className="flex items-center justify-center">
-                  <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                  </svg>
+                  <Loader2 size={18} className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" />
                   Saving...
                 </span>
               ) : (currentUsername ? 'Update Username' : 'Set Username')}
