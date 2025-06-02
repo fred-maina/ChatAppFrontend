@@ -43,7 +43,7 @@ const PrivacyPolicyContent = () => (
 
     <p className="mb-2">
       <strong>Usage Data:</strong> Usage Data is collected automatically when using the Service.
-      Usage Data may include information such as Your Device's Internet Protocol address (e.g. IP address), browser type,
+      Usage Data may include information such as Your Device&apos;s Internet Protocol address (e.g. IP address), browser type,
       browser version, the pages of our Service that You visit, the time and date of Your visit, the time spent on those
       pages, unique device identifiers and other diagnostic data.
     </p>
@@ -97,7 +97,7 @@ const PrivacyPolicyContent = () => (
       Personal Data, We cannot guarantee its absolute security.
     </p>
 
-    <h5 className="text-md font-semibold text-gray-700 mt-4 mb-2">Children's Privacy</h5>
+    <h5 className="text-md font-semibold text-gray-700 mt-4 mb-2">Children&apos;s Privacy</h5>
     <p className="mb-3">
       Our Service does not address anyone under the age of 13. We do not knowingly collect personally identifiable information
       from anyone under the age of 13. If You are a parent or guardian and You are aware that Your child has provided Us with
@@ -108,11 +108,12 @@ const PrivacyPolicyContent = () => (
     <h5 className="text-md font-semibold text-gray-700 mt-4 mb-2">Links to Other Websites</h5>
     <p className="mb-3">
       Our Service may contain links to other websites that are not operated by Us. If You click on a third party link, You will be
-      directed to that third party's site. We strongly advise You to review the Privacy Policy of every site You visit.
+      directed to that third party&apos;s site. We strongly advise You to review the Privacy Policy of every site You visit.
     </p>
     <p className="mb-3">
       We have no control over and assume no responsibility for the content, privacy policies or practices of any third party sites
       or services.
+
     </p>
 
     <h5 className="text-md font-semibold text-gray-700 mt-4 mb-2">Changes to this Privacy Policy</h5>
@@ -122,7 +123,7 @@ const PrivacyPolicyContent = () => (
     </p>
     <p className="mb-3">
       We will let You know via email and/or a prominent notice on Our Service, prior to the change becoming effective and update
-      the "Last updated" date at the top of this Privacy Policy.
+      the &quot;Last updated&quot; date at the top of this Privacy Policy.
     </p>
     <p className="mb-3">
       You are advised to review this Privacy Policy periodically for any changes. Changes to this Privacy Policy are effective
