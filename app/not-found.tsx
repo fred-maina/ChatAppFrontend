@@ -18,7 +18,7 @@ export default function NotFound() {
         <h1 className="text-5xl font-bold text-gray-800 mb-4">404</h1>
         <h2 className="text-2xl font-semibold text-gray-700 mb-3">Page Not Found</h2>
         <p className="text-gray-600 mb-8 max-w-md">
-          Oops! The page you're looking for doesn't seem to exist. It might have been moved, deleted, or perhaps you mistyped the URL.
+          Oops! The page you&apos;re looking for doesn&apos;t seem to exist. It might have been moved, deleted, or perhaps you mistyped the URL.
         </p>
         <Link href="/" passHref>
           <button className="bg-teal-500 hover:bg-teal-600 text-white font-semibold py-3 px-8 rounded-lg transition-all duration-300 ease-in-out transform hover:scale-105 focus:ring-2 focus:ring-teal-400 focus:ring-opacity-75">
