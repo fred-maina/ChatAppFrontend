@@ -1,7 +1,7 @@
 // app/Components/LegalModal.tsx
 "use client";
 
-import React, { useState, useEffect } from 'react';
+import React, { useEffect } from 'react';
 import { X } from 'lucide-react';
 
 interface LegalModalProps {
