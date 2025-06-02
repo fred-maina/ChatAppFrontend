@@ -110,7 +110,7 @@ function OAuthCallbackContent() {
               Connecting with Google
             </h1>
             <p className="text-base md:text-lg text-gray-200 mb-8 max-w-md mx-auto">
-              Almost there! We're securely signing you into your AnonMsg account. This will only take a moment.
+              Almost there! We&apos; re securely signing you into your AnonMsg account. This will only take a moment.
             </p>
             <div className="flex justify-center items-center space-x-3">
               <div className="w-4 h-4 bg-white/90 rounded-full animate-bounce delay-0"></div>
