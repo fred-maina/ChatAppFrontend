@@ -321,6 +321,8 @@ export default function AnonymousChatPage() {
           if (data.success && Array.isArray(data.messages)) {
             const fetchedHistoryMessages: DisplayMessage[] = data.messages.map((apiMsg: ApiHistoryMessage): DisplayMessage => {
               const isReplyFromRecipient = apiMsg.senderType === 'self';
+              // Timestamps from the backend are assumed to be ISO 8601 strings (e.g., UTC).
+              // new Date() parses these correctly and then toLocaleTimeString() converts to the user's local timezone.
               const messageTimestamp = apiMsg.timestamp ? new Date(apiMsg.timestamp) : new Date();
 
               return {
@@ -639,8 +641,8 @@ export default function AnonymousChatPage() {
             Chatting with <span className="text-teal-600">{validatedRecipientUsername}</span>
           </h1>
 
-          <div className="flex-grow flex flex-col bg-white rounded-lg shadow-xl p-4 mb-4 overflow-hidden">
-            <div className="flex-grow overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100 px-1 py-1">
+          <div className="flex-grow flex flex-col bg-white rounded-lg shadow-xl overflow-hidden">
+            <div className="flex-grow overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100 px-3 py-3">
               {isHistoryLoading && (
                 <div className="flex justify-center items-center h-20 text-teal-500">
                   <Loader2 className="animate-spin mr-2" size={18} /> Loading messages...
@@ -668,10 +670,10 @@ export default function AnonymousChatPage() {
                   className={`flex mb-2 ${msg.isReply ? 'justify-start' : 'justify-end'}`}
                 >
                   <div
-                    className={`max-w-[70%] px-3 py-2 rounded-xl text-white shadow-sm ${
+                    className={`max-w-[70%] px-3 py-2 text-white shadow-sm ${
                       msg.isReply
-                        ? 'bg-gray-700 rounded-bl-none'
-                        : 'bg-teal-500 rounded-br-none'
+                        ? 'bg-gray-700 rounded-t-xl rounded-br-xl rounded-bl-sm' // Received message styling
+                        : 'bg-teal-500 rounded-t-xl rounded-bl-xl rounded-br-sm' // Sent message styling
                     }`}
                   >
                     <div className="font-semibold text-xs mb-1">
@@ -688,19 +690,19 @@ export default function AnonymousChatPage() {
             </div>
           </div>
 
-          <form onSubmit={handleSubmitMessage} className="flex-shrink-0 bg-white p-3 rounded-lg shadow-md flex items-center">
+          <form onSubmit={handleSubmitMessage} className="flex-shrink-0 bg-white p-3 rounded-lg shadow-md flex items-center mt-4">
             <input
               type="text"
               value={messageText}
               onChange={(e) => setMessageText(e.target.value)}
               placeholder="Type your anonymous message..."
-              className="flex-grow border border-gray-300 rounded-full px-3 py-2 mr-2 focus:outline-none focus:ring-2 focus:ring-teal-500 transition-colors text-gray-700 text-sm"
+              className="flex-grow border border-gray-300 rounded-xl px-3 py-2 mr-2 focus:outline-none focus:ring-2 focus:ring-teal-500 transition-colors text-gray-700 text-sm"
               disabled={isLoading || !finalSenderDisplayName || !usernameExists}
               maxLength={500}
             />
             <button
               type="submit"
-              className="bg-teal-500 hover:bg-teal-600 text-white p-2.5 rounded-full shadow transition duration-300 ease-in-out transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-teal-500 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="bg-teal-500 hover:bg-teal-600 text-white p-2.5 rounded-xl shadow transition duration-300 ease-in-out transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-teal-500 disabled:opacity-50 disabled:cursor-not-allowed"
               disabled={isLoading || !messageText.trim() || !finalSenderDisplayName || !usernameExists}
             >
               {isLoading ? (
