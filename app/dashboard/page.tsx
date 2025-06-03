@@ -148,6 +148,7 @@ function DashboardContent() {
   const [isSetUsernameModalOpen, setIsSetUsernameModalOpen] = useState(false);
   const [modalEmail, setModalEmail] = useState<string | null>(null);
   const [modalToken, setModalToken] = useState<string | null>(null);
+  const [isInitialUserLoadComplete, setIsInitialUserLoadComplete] = useState(false); // New state to track if user data fetch is done
 
   const [chats, setChats] = useState<Chat[]>([]);
   const [selectedChat, setSelectedChat] = useState<Chat | null>(null);
@@ -408,7 +409,7 @@ function DashboardContent() {
     };
   }, [ws, setUserError, router, user?.username, setChats, setSelectedChat, playNotificationSound, showBrowserNotification, selectedChat, notificationPermission, chats]);
 
-  // Main Effect for user loading and initial setup
+  // Effect 1: Handles initial user loading and opens SetUsernameModal if needed
   useEffect(() => {
     const tokenFromStorage = localStorage.getItem("token");
     const action = searchParams.get("action");
@@ -416,44 +417,29 @@ function DashboardContent() {
     const tempTokenFromQuery = searchParams.get("tempToken");
 
     // Scenario 1: Initial load with action=setUsername from OAuth callback
-    if (action === "setUsername" && emailFromQuery && tempTokenFromQuery) {
-      setModalEmail(emailFromQuery);
-      setModalToken(tempTokenFromQuery);
-      // We are showing a modal, so dashboard is not "fully loading" in the background
-      setIsLoadingUser(false);
-      setIsSetUsernameModalOpen(true);
-      return; // Crucial: Stop execution of this useEffect run
+    if (action === "setUsername" && emailFromQuery && tempTokenFromQuery && !isSetUsernameModalOpen) {
+        setModalEmail(emailFromQuery);
+        setModalToken(tempTokenFromQuery);
+        setIsLoadingUser(false); // Not loading user, but waiting for username
+        setIsSetUsernameModalOpen(true);
+        // Do not set isInitialUserLoadComplete yet, as username isn't finalized
+        return; // Important: Stop execution of this useEffect run
     }
 
-    // Scenario 2: No token, redirect to auth. Only if we aren't already opening the modal with a temp token.
+    // Scenario 2: No token, redirect to auth
     if (!tokenFromStorage && !isSetUsernameModalOpen) {
       router.push("/auth?error=no_token");
       return;
     }
 
-    // Scenario 3: Token exists, and user data hasn't been loaded OR username needs to be set
-    // This condition ensures the fetch only runs when user data is not present or username is null
-    // And prevents re-fetching if the user object already has a username and we're not waiting for modal action.
-    if (user && user.username !== null) {
-        // User is loaded and has a username, ensure WS is connected and chats are loaded
-        if (!ws.current || ws.current.readyState === WebSocket.CLOSED) {
-            connectWebSocket(tokenFromStorage!);
-        }
-        if (chats.length === 0 && !isLoadingChats) { // Prevent re-fetching if already fetched
-            setIsLoadingChats(true);
-            fetchUserChatsFromApi(tokenFromStorage!).then(fetchedApiChats => {
-                setChats(fetchedApiChats);
-            }).catch(err => {
-                console.error("Failed to fetch initial chats:", err);
-                setUserError("Could not load your conversations initially. " + (err as Error).message);
-            }).finally(() => setIsLoadingChats(false));
-        }
-        setIsLoadingUser(false); // User is loaded, no more loading state
-        return; // Exit if user is already loaded and has username
+    // Scenario 3: User data already loaded and processed, no need to re-fetch /me
+    // This condition prevents repeated /me calls
+    if (isInitialUserLoadComplete) {
+        setIsLoadingUser(false); // Ensure loading is false
+        return;
     }
 
-    // If we reach here, it means user is null OR user.username is null.
-    // Proceed to fetch user data.
+    // If we reach here, we need to fetch user data for the first time
     setIsLoadingUser(true);
     fetch(`${API_BASE_URL}/api/auth/me`, {
         headers: { Authorization: `Bearer ${tokenFromStorage}` },
@@ -488,15 +474,8 @@ function DashboardContent() {
             setModalToken(tokenFromStorage);
             setIsSetUsernameModalOpen(true); // Open modal if username is null
         } else {
-            // Username is set, connect WS and fetch chats
-            connectWebSocket(tokenFromStorage!);
-            setIsLoadingChats(true);
-            fetchUserChatsFromApi(tokenFromStorage!).then(fetchedApiChats => {
-                setChats(fetchedApiChats);
-            }).catch(err => {
-                console.error("Failed to fetch initial chats:", err);
-                setUserError("Could not load your conversations initially. " + (err as Error).message);
-            }).finally(() => setIsLoadingChats(false));
+            // Username is set, mark initial load complete
+            setIsInitialUserLoadComplete(true);
         }
     })
     .catch(err => {
@@ -509,35 +488,57 @@ function DashboardContent() {
         }
     })
     .finally(() => {
-        // isLoadingUser should be false regardless of modal state once fetch is done
         setIsLoadingUser(false);
     });
 
-
-    // Cleanup for WebSocket connection on unmount
+    // Cleanup for WebSocket connection on unmount (redundant due to connectWebSocket's return, but good for safety)
     return () => {
         if (ws.current && ws.current.readyState === WebSocket.OPEN) {
             ws.current.close(1000, "Dashboard unmounting");
         }
         ws.current = null;
     };
-  }, [connectWebSocket, router, searchParams, user, chats.length, isLoadingChats]);
+  }, [router, searchParams, isSetUsernameModalOpen, isInitialUserLoadComplete]); // Add isInitialUserLoadComplete to dependencies
 
+
+  // Effect 2: Handles WebSocket connection and initial chat fetching after user is fully loaded and username is set
+  useEffect(() => {
+    const tokenFromStorage = localStorage.getItem("token");
+    if (isInitialUserLoadComplete && user && user.username !== null && tokenFromStorage) {
+        // Connect WebSocket if not already connected
+        if (!ws.current || ws.current.readyState === WebSocket.CLOSED) {
+            connectWebSocket(tokenFromStorage);
+        }
+
+        // Fetch chats if not already loaded (and not currently loading)
+        if (chats.length === 0 && !isLoadingChats) {
+            setIsLoadingChats(true);
+            fetchUserChatsFromApi(tokenFromStorage)
+            .then(fetchedApiChats => {
+                setChats(fetchedApiChats);
+            })
+            .catch(err => {
+                console.error("Failed to fetch initial chats:", err);
+                setUserError("Could not load your conversations initially. " + (err as Error).message);
+            })
+            .finally(() => setIsLoadingChats(false));
+        }
+    }
+  }, [isInitialUserLoadComplete, user, chats.length, isLoadingChats, connectWebSocket]); // Depend on user and isInitialUserLoadComplete
 
   // This useEffect ensures the username modal is only closed when needed.
   // This effect will only run if the username modal was explicitly closed AND username is still null
-  // This is the "forced logout" logic
+  // This is the "forced logout" logic if user initiated username setting from OAuth and then aborted.
   useEffect(() => {
     // Only apply this logic if the action is specifically to set username (e.g. from OAuth)
-    // AND the modal was closed (or never opened, but user.username is null)
+    // AND the modal was closed (or never opened after trying to set username, but user.username is still null)
     // AND the user still has no username.
-    // If the modal was opened via fetchedUser.username === null, then isSetUsernameModalOpen would be true
-    // If the user closed it, isSetUsernameModalOpen becomes false.
-    if (searchParams.get("action") === "setUsername" && !isSetUsernameModalOpen && !user?.username && !isLoadingUser && !userError) {
+    // user && user.username === null : means user object is loaded but username is still empty
+    if (searchParams.get("action") === "setUsername" && !isSetUsernameModalOpen && user?.username === null && !isLoadingUser) {
       setUserError("A username is required to use the dashboard. Please log in again to set your username.");
       setTimeout(handleLogout, 3000);
     }
-  }, [isSetUsernameModalOpen, user?.username, router, handleLogout, searchParams, isLoadingUser, userError]);
+  }, [isSetUsernameModalOpen, user?.username, router, handleLogout, searchParams, isLoadingUser]);
 
 
   useEffect(() => {
@@ -564,40 +565,19 @@ function DashboardContent() {
 
     router.replace("/dashboard", { scroll: false }); // Clean up URL params
 
-    if (tokenForWS && newUsername) {
-        connectWebSocket(tokenForWS);
-        setIsLoadingChats(true);
-        fetchUserChatsFromApi(tokenForWS).then(fetchedChats => setChats(fetchedChats))
-        .catch(err => {
-            console.error("Failed to fetch chats post username set", err);
-            setUserError("Could not load conversations: " + (err as Error).message);
-        })
-        .finally(() => setIsLoadingChats(false));
-    }
     // If we used a temporary token from OAuth callback, store it permanently
     if (modalToken && localStorage.getItem("token") !== modalToken) {
         localStorage.setItem("token", modalToken);
     }
     setModalToken(null); setModalEmail(null);
-    setIsLoadingUser(false); // User is now loaded and username set
+    setIsInitialUserLoadComplete(true); // Mark user as fully loaded with username
   };
 
   // This function is explicitly called when the user tries to close the modal
   const handleCloseUsernameModal = () => {
     setIsSetUsernameModalOpen(false); // Set to false to close the modal
     router.replace("/dashboard", { scroll: false }); // Clean up URL params
-
-    // If user still has no username, then force logout
-    if (!user?.username) {
-        setUserError("A username is required to use the dashboard. Please log in again to set your username.");
-        setTimeout(handleLogout, 3000);
-    }
-    // Clear modal related state, not loading state
-    setModalToken(null);
-    setModalEmail(null);
-    // Do NOT set isLoadingUser here unless it's genuinely still loading something unrelated
-    // This function's role is to handle modal closure, not user loading state broadly.
-    // The main useEffect handles setting isLoadingUser based on user fetch.
+    // The conditional logout will be handled by the useEffect for initial setup
   };
 
 
