@@ -4,6 +4,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { X, CheckCircle, AlertTriangle, Loader2 } from 'lucide-react';
 
+const API_BASE_URL= process.env.NEXT_PUBLIC_API_URL;
+
 interface SetUsernameModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -101,7 +103,7 @@ const SetUsernameModal: React.FC<SetUsernameModalProps> = ({
       setIsUsernameAvailable(null);
 
       try {
-        const response = await fetch(`http://localhost:8080/api/auth/check-username/${encodeURIComponent(username)}`, {
+        const response = await fetch(`${API_BASE_URL}/api/auth/check-username/${encodeURIComponent(username)}`, {
           method: 'GET',
           headers: {
             'Content-Type': 'application/json',
@@ -172,7 +174,7 @@ const SetUsernameModal: React.FC<SetUsernameModalProps> = ({
     setIsLoading(true);
 
     try {
-      const response = await fetch('http://localhost:8080/api/auth/set-username', {
+      const response = await fetch(`${API_BASE_URL}/api/auth/set-username`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
