@@ -408,6 +408,7 @@ function DashboardContent() {
     };
   }, [ws, setUserError, router, user?.username, setChats, setSelectedChat, playNotificationSound, showBrowserNotification, selectedChat, notificationPermission, chats]);
 
+  // Main Effect for user loading and initial setup
   useEffect(() => {
     const tokenFromStorage = localStorage.getItem("token");
     const action = searchParams.get("action");
@@ -418,77 +419,100 @@ function DashboardContent() {
     if (action === "setUsername" && emailFromQuery && tempTokenFromQuery) {
       setModalEmail(emailFromQuery);
       setModalToken(tempTokenFromQuery);
-      setIsLoadingUser(false); // We are showing a modal, not loading dashboard yet
+      // We are showing a modal, so dashboard is not "fully loading" in the background
+      setIsLoadingUser(false);
       setIsSetUsernameModalOpen(true);
       return; // Crucial: Stop execution of this useEffect run
     }
 
-    // Scenario 2: No token, redirect to auth
-    if (!tokenFromStorage) {
+    // Scenario 2: No token, redirect to auth. Only if we aren't already opening the modal with a temp token.
+    if (!tokenFromStorage && !isSetUsernameModalOpen) {
       router.push("/auth?error=no_token");
       return;
     }
 
     // Scenario 3: Token exists, and user data hasn't been loaded OR username needs to be set
     // This condition ensures the fetch only runs when user data is not present or username is null
-    if (!user || user.username === null) {
-        setIsLoadingUser(true);
-        fetch(`${API_BASE_URL}/api/auth/me`, {
-            headers: { Authorization: `Bearer ${tokenFromStorage}` },
-        })
-        .then(async (res) => {
-            if (!res.ok) {
-                if (res.status === 401 || res.status === 403) {
-                    localStorage.removeItem("token");
-                    router.push("/auth?sessionExpired=true");
-                }
-                const errorData = await res.json().catch(() => ({message: "Server returned an error."}));
-                throw new Error(errorData.message || `Server error: ${res.status}`);
-            }
-            return res.json();
-        })
-        .then((apiResponse: MeApiResponse) => {
-            if (!apiResponse.success || !apiResponse.user || !apiResponse.user.id) {
-                localStorage.removeItem("token");
-                router.push("/auth?error=invalid_user_data");
-                throw new Error(apiResponse.message || "Invalid user data received.");
-            }
-
-            const fetchedUser = apiResponse.user;
-            const fullUser: User = {
-                ...fetchedUser,
-                chatLink: fetchedUser.username ? `${window.location.origin}/chat/${fetchedUser.username}` : ''
-            };
-            setUser(fullUser); // This will cause a re-render. Due to `user` in dependencies, this useEffect will run again.
-
-            if (fetchedUser.username === null) {
-                setModalEmail(fetchedUser.email || null);
-                setModalToken(tokenFromStorage);
-                setIsSetUsernameModalOpen(true);
-            } else {
-                // If username is set, proceed to connect WS and fetch chats
-                connectWebSocket(tokenFromStorage);
-                setIsLoadingChats(true);
-                fetchUserChatsFromApi(tokenFromStorage).then(fetchedApiChats => {
-                    setChats(fetchedApiChats);
-                }).catch(err => {
-                    console.error("Failed to fetch initial chats:", err);
-                    setUserError("Could not load your conversations initially. " + (err as Error).message);
-                }).finally(() => setIsLoadingChats(false));
-            }
-        })
-        .catch(err => {
-            console.error("Failed to fetch user data:", err);
-            setUserError((err as Error).message || "Failed to load dashboard data. Please try logging in again.");
-            localStorage.removeItem("token");
-            if (!isSetUsernameModalOpen && action !== "setUsername") router.push("/auth?error=load_failed");
-        })
-        .finally(() => {
-            if (!isSetUsernameModalOpen) {
-                setIsLoadingUser(false);
-            }
-        });
+    // And prevents re-fetching if the user object already has a username and we're not waiting for modal action.
+    if (user && user.username !== null) {
+        // User is loaded and has a username, ensure WS is connected and chats are loaded
+        if (!ws.current || ws.current.readyState === WebSocket.CLOSED) {
+            connectWebSocket(tokenFromStorage!);
+        }
+        if (chats.length === 0 && !isLoadingChats) { // Prevent re-fetching if already fetched
+            setIsLoadingChats(true);
+            fetchUserChatsFromApi(tokenFromStorage!).then(fetchedApiChats => {
+                setChats(fetchedApiChats);
+            }).catch(err => {
+                console.error("Failed to fetch initial chats:", err);
+                setUserError("Could not load your conversations initially. " + (err as Error).message);
+            }).finally(() => setIsLoadingChats(false));
+        }
+        setIsLoadingUser(false); // User is loaded, no more loading state
+        return; // Exit if user is already loaded and has username
     }
+
+    // If we reach here, it means user is null OR user.username is null.
+    // Proceed to fetch user data.
+    setIsLoadingUser(true);
+    fetch(`${API_BASE_URL}/api/auth/me`, {
+        headers: { Authorization: `Bearer ${tokenFromStorage}` },
+    })
+    .then(async (res) => {
+        if (!res.ok) {
+            if (res.status === 401 || res.status === 403) {
+                localStorage.removeItem("token");
+                router.push("/auth?sessionExpired=true");
+            }
+            const errorData = await res.json().catch(() => ({message: "Server returned an error."}));
+            throw new Error(errorData.message || `Server error: ${res.status}`);
+        }
+        return res.json();
+    })
+    .then((apiResponse: MeApiResponse) => {
+        if (!apiResponse.success || !apiResponse.user || !apiResponse.user.id) {
+            localStorage.removeItem("token");
+            router.push("/auth?error=invalid_user_data");
+            throw new Error(apiResponse.message || "Invalid user data received.");
+        }
+
+        const fetchedUser = apiResponse.user;
+        const fullUser: User = {
+            ...fetchedUser,
+            chatLink: fetchedUser.username ? `${window.location.origin}/chat/${fetchedUser.username}` : ''
+        };
+        setUser(fullUser);
+
+        if (fetchedUser.username === null) {
+            setModalEmail(fetchedUser.email || null);
+            setModalToken(tokenFromStorage);
+            setIsSetUsernameModalOpen(true); // Open modal if username is null
+        } else {
+            // Username is set, connect WS and fetch chats
+            connectWebSocket(tokenFromStorage!);
+            setIsLoadingChats(true);
+            fetchUserChatsFromApi(tokenFromStorage!).then(fetchedApiChats => {
+                setChats(fetchedApiChats);
+            }).catch(err => {
+                console.error("Failed to fetch initial chats:", err);
+                setUserError("Could not load your conversations initially. " + (err as Error).message);
+            }).finally(() => setIsLoadingChats(false));
+        }
+    })
+    .catch(err => {
+        console.error("Failed to fetch user data:", err);
+        setUserError((err as Error).message || "Failed to load dashboard data. Please try logging in again.");
+        localStorage.removeItem("token");
+        // Only redirect if username modal is not being handled
+        if (!isSetUsernameModalOpen && action !== "setUsername") {
+             router.push("/auth?error=load_failed");
+        }
+    })
+    .finally(() => {
+        // isLoadingUser should be false regardless of modal state once fetch is done
+        setIsLoadingUser(false);
+    });
+
 
     // Cleanup for WebSocket connection on unmount
     return () => {
@@ -497,16 +521,23 @@ function DashboardContent() {
         }
         ws.current = null;
     };
-  }, [connectWebSocket, router, searchParams, user, isSetUsernameModalOpen]); // Removed API_BASE_URL as it's a constant.
+  }, [connectWebSocket, router, searchParams, user, chats.length, isLoadingChats]);
+
 
   // This useEffect ensures the username modal is only closed when needed.
+  // This effect will only run if the username modal was explicitly closed AND username is still null
+  // This is the "forced logout" logic
   useEffect(() => {
-    const action = searchParams.get("action");
-    if (action === "setUsername" && !isSetUsernameModalOpen && !user?.username) {
+    // Only apply this logic if the action is specifically to set username (e.g. from OAuth)
+    // AND the modal was closed (or never opened, but user.username is null)
+    // AND the user still has no username.
+    // If the modal was opened via fetchedUser.username === null, then isSetUsernameModalOpen would be true
+    // If the user closed it, isSetUsernameModalOpen becomes false.
+    if (searchParams.get("action") === "setUsername" && !isSetUsernameModalOpen && !user?.username && !isLoadingUser && !userError) {
       setUserError("A username is required to use the dashboard. Please log in again to set your username.");
       setTimeout(handleLogout, 3000);
     }
-  }, [isSetUsernameModalOpen, user?.username, router, handleLogout, searchParams]);
+  }, [isSetUsernameModalOpen, user?.username, router, handleLogout, searchParams, isLoadingUser, userError]);
 
 
   useEffect(() => {
@@ -525,13 +556,13 @@ function DashboardContent() {
 
   const handleUsernameSet = (newUsername: string) => {
     const tokenForWS = modalToken || localStorage.getItem("token");
-    setIsSetUsernameModalOpen(false);
+    setIsSetUsernameModalOpen(false); // Close the modal
     setUser(prevUser => prevUser ? {
         ...prevUser, username: newUsername,
         chatLink: `${window.location.origin}/chat/${newUsername}`
     } : null);
 
-    router.replace("/dashboard", { scroll: false });
+    router.replace("/dashboard", { scroll: false }); // Clean up URL params
 
     if (tokenForWS && newUsername) {
         connectWebSocket(tokenForWS);
@@ -543,22 +574,30 @@ function DashboardContent() {
         })
         .finally(() => setIsLoadingChats(false));
     }
+    // If we used a temporary token from OAuth callback, store it permanently
     if (modalToken && localStorage.getItem("token") !== modalToken) {
         localStorage.setItem("token", modalToken);
     }
     setModalToken(null); setModalEmail(null);
-    setIsLoadingUser(false);
+    setIsLoadingUser(false); // User is now loaded and username set
   };
 
+  // This function is explicitly called when the user tries to close the modal
   const handleCloseUsernameModal = () => {
-    setIsSetUsernameModalOpen(false);
-    router.replace("/dashboard", { scroll: false });
+    setIsSetUsernameModalOpen(false); // Set to false to close the modal
+    router.replace("/dashboard", { scroll: false }); // Clean up URL params
+
+    // If user still has no username, then force logout
     if (!user?.username) {
         setUserError("A username is required to use the dashboard. Please log in again to set your username.");
         setTimeout(handleLogout, 3000);
     }
-    setModalToken(null); setModalEmail(null);
-    setIsLoadingUser(false);
+    // Clear modal related state, not loading state
+    setModalToken(null);
+    setModalEmail(null);
+    // Do NOT set isLoadingUser here unless it's genuinely still loading something unrelated
+    // This function's role is to handle modal closure, not user loading state broadly.
+    // The main useEffect handles setting isLoadingUser based on user fetch.
   };
 
 
@@ -675,7 +714,8 @@ function DashboardContent() {
     );
   }
 
-  if (isSetUsernameModalOpen || (!user?.username && !isLoadingUser && !userError)) {
+  // Render the SetUsernameModal if it should be open
+  if (isSetUsernameModalOpen) {
     return (
       <>
         <SetUsernameModal isOpen={true} onClose={handleCloseUsernameModal} onUsernameSet={handleUsernameSet}
@@ -689,9 +729,13 @@ function DashboardContent() {
     );
   }
 
-
-  if (!user) {
-      if (typeof window !== "undefined") router.push("/auth?error=unknown_state"); return (
+  // If we reach here, modal is not open, and user should exist and have a username.
+  if (!user || user.username === null) {
+      // This is a fallback in case the state is inconsistent.
+      // It should ideally be caught by the modal opening logic above.
+      console.warn("User is not fully loaded or username is null, but modal is not open. Redirecting.");
+      if (typeof window !== "undefined") router.push("/auth?error=unknown_state_no_username");
+      return (
         <div className="min-h-screen bg-gray-100 flex flex-col items-center justify-center p-4">
             <Loader2 className="w-10 h-10 text-teal-500 animate-spin mr-3" />
             <p className="text-gray-600 text-lg">Finalizing dashboard...</p>
@@ -714,7 +758,7 @@ function DashboardContent() {
             <div className="flex items-center space-x-2"><MessageSquareText className="h-8 w-8 text-teal-500" /><h2 className="text-xl font-bold text-gray-800">My Chats</h2></div>
             <div className="flex items-center space-x-1">
                 <button
-                    onClick={requestNotificationPermission} // This is now defined!
+                    onClick={requestNotificationPermission}
                     title={notificationPermission === 'granted' ? "Notifications Enabled" : "Enable Notifications"}
                     className={`p-2 rounded-lg transition-colors ${
                         notificationPermission === 'granted' ? 'text-green-500 hover:bg-green-50' :
@@ -736,7 +780,7 @@ function DashboardContent() {
             </div>
              <div className="flex items-center space-x-1">
                 <button
-                    onClick={requestNotificationPermission} // This is now defined!
+                    onClick={requestNotificationPermission}
                     title={notificationPermission === 'granted' ? "Notifications Enabled" : "Enable Notifications"}
                     className={`p-2 rounded-lg transition-colors ${
                         notificationPermission === 'granted' ? 'text-green-500 hover:bg-green-50' :
