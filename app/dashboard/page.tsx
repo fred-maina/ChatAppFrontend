@@ -556,7 +556,6 @@ function DashboardContent() {
   };
 
   const handleUsernameSet = (newUsername: string) => {
-    const tokenForWS = modalToken || localStorage.getItem("token");
     setIsSetUsernameModalOpen(false); // Close the modal
     setUser(prevUser => prevUser ? {
         ...prevUser, username: newUsername,
