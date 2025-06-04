@@ -5,7 +5,8 @@ import { useState, useEffect, FormEvent, useRef, useCallback } from 'react';
 import { useParams }
 from 'next/navigation';
 import Link from 'next/link';
-import { Send, UserPlus, MessageSquareText, AlertTriangle, Loader2, VenetianMask, Frown, BellDot, Info } from 'lucide-react'; // Added Info
+// Removed 'Info' from this import
+import { Send, UserPlus, MessageSquareText, AlertTriangle, Loader2, VenetianMask, Frown, BellDot } from 'lucide-react';
 import LegalModal from '../../Components/LegalModal';
 import TermsAndConditionsContent from '../../Components/TermsAndConditionsContent';
 import { WebSocketMessagePayload, ChatMessage as AppChatMessage } from '../../types';
@@ -65,7 +66,7 @@ interface UsernameCheckResponse {
 }
 
 const AnonHeader = ({ showCreateLink = true }: { showCreateLink?: boolean }) => (
-  <header className="py-3 px-4 md:px-6 shadow-sm bg-white sticky top-0 z-40 flex-shrink-0"> {/* Added flex-shrink-0 */}
+  <header className="py-3 px-4 md:px-6 shadow-sm bg-white sticky top-0 z-40 flex-shrink-0">
     <div className="container mx-auto flex justify-between items-center">
       <Link href="/" className="flex items-center space-x-2 cursor-pointer">
         <MessageSquareText className="h-7 w-7 text-teal-500" />
@@ -175,23 +176,21 @@ export default function AnonymousChatPage() {
   const [showNotificationPrompt, setShowNotificationPrompt] = useState(false);
 
 
-  // Initialize notification permission and audio
   useEffect(() => {
     if (typeof window !== "undefined" && "Notification" in window) {
       const perm = Notification.permission;
       setNotificationPermission(perm);
-      // Show prompt if permission is 'default' and username is set
       if (perm === 'default' && finalSenderDisplayName) {
         setShowNotificationPrompt(true);
       }
     }
     audioRef.current = new Audio(NOTIFICATION_SOUND_URL);
     audioRef.current.load();
-  }, [finalSenderDisplayName]); // Re-check if prompt should show when finalSenderDisplayName is set
+  }, [finalSenderDisplayName]);
 
 
   const requestNotificationPermission = async () => {
-    setShowNotificationPrompt(false); // Hide prompt once user interacts
+    setShowNotificationPrompt(false);
     if (typeof window !== "undefined" && "Notification" in window) {
       if (Notification.permission === 'default') {
         const permission = await Notification.requestPermission();
@@ -218,14 +217,14 @@ export default function AnonymousChatPage() {
     }
   };
 
-  const playNotificationSound = () => {
+  // Wrapped playNotificationSound in useCallback
+  const playNotificationSound = useCallback(() => {
     if (audioRef.current) {
       audioRef.current.currentTime = 0;
       audioRef.current.play().catch(error => console.warn("Error playing notification sound:", error));
     }
-  };
+  }, []); // No dependencies needed if audioRef is stable
 
-  // Wrapped showBrowserNotification in useCallback
   const showBrowserNotification = useCallback((title: string, body: string) => {
     if (notificationPermission === 'granted') {
       const notification = new Notification(title, {
@@ -238,7 +237,7 @@ export default function AnonymousChatPage() {
         notification.close();
       };
     }
-  }, [notificationPermission, validatedRecipientUsername, anonSessionId]); // Dependencies for useCallback
+  }, [notificationPermission, validatedRecipientUsername, anonSessionId]);
 
   const openTermsModal = () => {
     setIsLegalModalOpen(true);
@@ -316,7 +315,7 @@ export default function AnonymousChatPage() {
       setIsUsernameModalOpen(false);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [initialRecipientUsername]); // tempSenderDisplayName removed to avoid loop if getRandomName changes it
+  }, [initialRecipientUsername]);
 
   useEffect(() => {
     if (usernameExists && finalSenderDisplayName && anonSessionId && validatedRecipientUsername) {
@@ -349,19 +348,21 @@ export default function AnonymousChatPage() {
 
             setDisplayedMessages(prevMessages => {
               const messageMap = new Map<string, DisplayMessage>();
+              // Add existing messages first, so history can overwrite if IDs match
+              prevMessages.forEach(msg => messageMap.set(msg.id, msg));
+              // Then add/overwrite with fetched history messages
               fetchedHistoryMessages.forEach(msg => messageMap.set(msg.id, msg));
-              // Keep existing messages if not in history (e.g., optimistic updates)
-              // prevMessages.forEach(msg => { if(!messageMap.has(msg.id)) messageMap.set(msg.id, msg)});
-
+              
               return Array.from(messageMap.values()).sort((a, b) =>
                 new Date(a.originalTimestamp).getTime() - new Date(b.originalTimestamp).getTime()
               );
             });
-            if (fetchedHistoryMessages.length > 0) {
+            if (fetchedHistoryMessages.length > 0 || displayedMessages.length > 0) { // Check combined length
               setTimeout(scrollToBottom, 0);
             }
           } else if (data.success && data.messages.length === 0) {
-             setDisplayedMessages([]);
+             // If history is empty, but there might be existing messages (e.g. from WS), don't clear them
+             // setDisplayedMessages([]); // This would clear optimistic updates if history is empty
           }
           else {
             throw new Error(data.message || "Invalid data format for chat history.");
@@ -372,10 +373,10 @@ export default function AnonymousChatPage() {
           setPageError(`Could not load previous messages: ${(err as Error).message}.`);
         }).finally(() => setIsHistoryLoading(false));
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [usernameExists, finalSenderDisplayName, anonSessionId, validatedRecipientUsername]);
 
 
-  // Effect for WebSocket connection
   useEffect(() => {
     if (!usernameExists || !finalSenderDisplayName || !anonSessionId || !validatedRecipientUsername) return;
     if (ws.current && ws.current.readyState === WebSocket.OPEN) return;
@@ -398,7 +399,7 @@ export default function AnonymousChatPage() {
           const newDisplayMessage: DisplayMessage = {
             id: `reply-${messagePayload.timestamp || Date.now()}-${Math.random()}`,
             text: messagePayload.content ?? '',
-            sender: validatedRecipientUsername, // The user who owns the link
+            sender: validatedRecipientUsername,
             timestamp: messageTimestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
             originalTimestamp: messageTimestamp.toISOString(),
             isReply: true,
@@ -490,7 +491,6 @@ export default function AnonymousChatPage() {
     if (!finalSenderDisplayName) { setPageError("Please set a temporary display name first."); setIsUsernameModalOpen(true); return; }
     if (!ws.current || ws.current.readyState !== WebSocket.OPEN) {
       setPageError("Not connected to chat server. Please wait or refresh. Retrying connection...");
-      // Optionally, try to reconnect or prompt user
       return;
     }
 
@@ -499,8 +499,8 @@ export default function AnonymousChatPage() {
 
     const messagePayload: WebSocketMessagePayload = {
       type: "ANON_TO_USER",
-      from: anonSessionId || "unknown_anon_session", // This is the sender's session ID
-      to: validatedRecipientUsername, // This is the recipient's username
+      from: anonSessionId || "unknown_anon_session",
+      to: validatedRecipientUsername,
       content: messageText.trim(),
       nickname: finalSenderDisplayName,
       timestamp: currentMessageTimestamp.toISOString(),
@@ -512,10 +512,10 @@ export default function AnonymousChatPage() {
       const newDisplayMessage: DisplayMessage = {
         id: newMessageId,
         text: messageText.trim(),
-        sender: finalSenderDisplayName, // This is the anonymous sender's chosen alias
+        sender: finalSenderDisplayName,
         timestamp: currentMessageTimestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         originalTimestamp: currentMessageTimestamp.toISOString(),
-        isReply: false, // This message is from the anonymous user, not a reply from the link owner
+        isReply: false,
       };
       setDisplayedMessages(prev => [...prev, newDisplayMessage].sort((a,b) => new Date(a.originalTimestamp).getTime() - new Date(b.originalTimestamp).getTime()));
       setMessageText('');
@@ -533,7 +533,7 @@ export default function AnonymousChatPage() {
   };
 
   const AdvertPanel = () => (
-    <div className="w-full bg-teal-600 text-white shadow-xl rounded-xl p-5 text-center flex-shrink-0"> {/* Added flex-shrink-0 */}
+    <div className="w-full bg-teal-600 text-white shadow-xl rounded-xl p-5 text-center flex-shrink-0">
         <UserPlus className="w-10 h-10 text-teal-200 mx-auto mb-2" />
         <h2 className="text-lg md:text-xl font-semibold mb-2">Want to Receive Your Own Anonymous Messages?</h2>
         <p className="text-teal-100 mb-4 text-sm">
@@ -562,7 +562,7 @@ export default function AnonymousChatPage() {
           <Loader2 size={40} className="animate-spin text-teal-500 mb-3" />
           <p className="text-base text-gray-600">Verifying user <span className="font-semibold">{initialRecipientUsername}</span>...</p>
         </main>
-         <footer className="bg-gray-800 text-gray-400 py-6 px-4 md:px-6 text-center text-xs mt-auto flex-shrink-0"> {/* Added flex-shrink-0 */}
+         <footer className="bg-gray-800 text-gray-400 py-6 px-4 md:px-6 text-center text-xs mt-auto flex-shrink-0">
             <div className="container mx-auto">
                 <p>&copy; {new Date().getFullYear()} AnonMsg. All rights reserved.</p>
             </div>
@@ -590,7 +590,7 @@ export default function AnonymousChatPage() {
             </button>
           </Link>
         </main>
-         <footer className="bg-gray-800 text-gray-400 py-6 px-4 md:px-6 text-center text-xs mt-auto flex-shrink-0"> {/* Added flex-shrink-0 */}
+         <footer className="bg-gray-800 text-gray-400 py-6 px-4 md:px-6 text-center text-xs mt-auto flex-shrink-0">
             <div className="container mx-auto">
                 <p>&copy; {new Date().getFullYear()} AnonMsg. All rights reserved.</p>
             </div>
@@ -614,7 +614,7 @@ export default function AnonymousChatPage() {
             handleUseRandomName={handleUseRandomNameInternal}
             recipientUsername={validatedRecipientUsername}
         />
-        <footer className="bg-gray-800 text-gray-400 py-6 px-4 md:px-6 text-center text-xs mt-auto flex-shrink-0"> {/* Added flex-shrink-0 */}
+        <footer className="bg-gray-800 text-gray-400 py-6 px-4 md:px-6 text-center text-xs mt-auto flex-shrink-0">
             <div className="container mx-auto">
                 <p>&copy; {new Date().getFullYear()} AnonMsg. All rights reserved.</p>
                  <p className="mt-1">Remember to be respectful. Do not use this service for harassment.</p>
@@ -625,11 +625,9 @@ export default function AnonymousChatPage() {
     );
   }
 
-  // Main chat UI
   return (
     <>
-      {/* Outer container for full height and flex column layout */}
-      <div className="h-screen flex flex-col bg-gray-100 font-['Inter',_sans-serif] overflow-hidden"> {/* Added overflow-hidden */}
+      <div className="h-screen flex flex-col bg-gray-100 font-['Inter',_sans-serif] overflow-hidden">
         <AnonHeader />
         {isUsernameModalOpen && usernameExists && !finalSenderDisplayName && (
             <UsernameModalComponent
@@ -641,12 +639,10 @@ export default function AnonymousChatPage() {
             />
         )}
 
-        {/* Main content area - takes up remaining space and allows internal scrolling */}
-        <main className="flex-grow container mx-auto flex flex-col px-0 sm:px-4 pt-4 pb-2 md:px-6 relative overflow-hidden"> {/* Changed padding, added overflow-hidden */}
+        <main className="flex-grow container mx-auto flex flex-col px-0 sm:px-4 pt-4 pb-2 md:px-6 relative overflow-hidden">
           
-          {/* Page Error (if any) - sticky or part of scroll? Let's make it part of the static top content */}
           {pageError && (
-            <div className="bg-red-100 border-l-4 border-red-500 text-red-700 px-4 py-3 rounded-md shadow-md mx-4 sm:mx-0 mb-3 flex items-center text-sm flex-shrink-0" role="alert"> {/* Added flex-shrink-0 */}
+            <div className="bg-red-100 border-l-4 border-red-500 text-red-700 px-4 py-3 rounded-md shadow-md mx-4 sm:mx-0 mb-3 flex items-center text-sm flex-shrink-0" role="alert">
               <AlertTriangle className="h-5 w-5 mr-2.5" />
               <span>{pageError}</span>
               <button onClick={() => setPageError(null)} className="ml-auto -mr-1 -my-1.5 p-1.5 text-red-500 hover:bg-red-200 rounded-md">
@@ -655,7 +651,6 @@ export default function AnonymousChatPage() {
             </div>
           )}
           
-          {/* Notification Permission Prompt */}
           {showNotificationPrompt && notificationPermission === 'default' && (
             <div className="bg-teal-50 border border-teal-300 text-teal-700 px-4 py-3 rounded-lg shadow-md mx-4 sm:mx-0 mb-3 flex flex-col sm:flex-row items-center justify-between text-sm flex-shrink-0">
                 <div className="flex items-center mb-2 sm:mb-0">
@@ -683,24 +678,20 @@ export default function AnonymousChatPage() {
           )}
 
 
-          {/* Chat area title */}
-          <h1 className="text-xl md:text-2xl font-bold text-gray-800 text-center mb-3 px-4 sm:px-0 flex-shrink-0"> {/* Added flex-shrink-0 */}
+          <h1 className="text-xl md:text-2xl font-bold text-gray-800 text-center mb-3 px-4 sm:px-0 flex-shrink-0">
             Chatting with <span className="text-teal-600">{validatedRecipientUsername}</span>
           </h1>
 
-          {/* Chat Box: Rounded, shadow, and importantly, flex-grow and overflow-hidden */}
-          {/* This div will contain the messages and the input field */}
-          <div className="flex-grow flex flex-col bg-white rounded-t-xl sm:rounded-xl shadow-xl overflow-hidden border border-gray-200 mx-0 sm:mx-0"> {/* Adjusted rounding and margin */}
+          <div className="flex-grow flex flex-col bg-white rounded-t-xl sm:rounded-xl shadow-xl overflow-hidden border border-gray-200 mx-0 sm:mx-0">
             
-            {/* Messages Area: This is the part that will scroll */}
-            <div className="flex-grow overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100 px-3 py-3 space-y-3"> {/* Added space-y-3 for message spacing */}
+            <div className="flex-grow overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100 px-3 py-3 space-y-3">
               {isHistoryLoading && (
-                <div className="flex justify-center items-center h-full text-teal-500"> {/* Adjusted height for loading */}
+                <div className="flex justify-center items-center h-full text-teal-500">
                   <Loader2 className="animate-spin mr-2" size={20} /> Loading messages...
                 </div>
               )}
               {!isHistoryLoading && displayedMessages.length === 0 && (
-                <div className="text-center text-gray-500 py-10 flex flex-col items-center justify-center h-full"> {/* Adjusted height for empty */}
+                <div className="text-center text-gray-500 py-10 flex flex-col items-center justify-center h-full">
                   <MessageSquareText className="w-12 h-12 mx-auto text-gray-300 mb-3" />
                   <p className="text-md font-medium">No messages yet.</p>
                   <p className="text-sm">Send the first anonymous message to <span className="font-semibold">{validatedRecipientUsername}</span>!</p>
@@ -714,19 +705,17 @@ export default function AnonymousChatPage() {
                   className={`flex ${msg.isReply ? 'justify-start' : 'justify-end'}`}
                 >
                   <div
-                    className={`max-w-[75%] sm:max-w-[70%] px-3.5 py-2.5 shadow-md rounded-2xl ${ // Enhanced styling
+                    className={`max-w-[75%] sm:max-w-[70%] px-3.5 py-2.5 shadow-md rounded-2xl ${
                       msg.isReply
-                        ? 'bg-gray-200 text-gray-800 rounded-bl-md' // Received message styling
-                        : 'bg-teal-500 text-white rounded-br-md' // Sent message styling
+                        ? 'bg-gray-200 text-gray-800 rounded-bl-md'
+                        : 'bg-teal-500 text-white rounded-br-md'
                     }`}
                   >
-                    {/* Sender Name (Alias) - only for messages from anonymous user in this context */}
                     {!msg.isReply && (
                         <div className="font-semibold text-xs mb-1 opacity-90">
                         {msg.nickname || finalSenderDisplayName}
                         </div>
                     )}
-                     {/* Sender Name (Recipient) - for replies from user */}
                     {msg.isReply && (
                         <div className="font-semibold text-xs mb-1 text-gray-600">
                         {validatedRecipientUsername}
@@ -739,10 +728,9 @@ export default function AnonymousChatPage() {
                   </div>
                 </div>
               ))}
-              <div ref={messagesEndRef} /> {/* For scrolling to bottom */}
+              <div ref={messagesEndRef} />
             </div>
 
-            {/* Message Input Area: Fixed at the bottom of its parent */}
             <form onSubmit={handleSubmitMessage} className="flex-shrink-0 bg-gray-50 p-3 md:p-4 border-t border-gray-200 flex items-center space-x-2">
                 <input
                 type="text"
@@ -767,13 +755,12 @@ export default function AnonymousChatPage() {
             </form>
           </div>
 
-          {/* Advertisement Panel below the chat box */}
-          <div className="mt-4 mx-4 sm:mx-0 flex-shrink-0"> {/* Added flex-shrink-0 */}
+          <div className="mt-4 mx-4 sm:mx-0 flex-shrink-0">
             <AdvertPanel />
           </div>
         </main>
 
-        <footer className="bg-gray-800 text-gray-400 py-5 px-4 md:px-6 text-center text-xs mt-auto flex-shrink-0"> {/* Added flex-shrink-0 */}
+        <footer className="bg-gray-800 text-gray-400 py-5 px-4 md:px-6 text-center text-xs mt-auto flex-shrink-0">
           <div className="container mx-auto">
             <p>&copy; {new Date().getFullYear()} AnonMsg. All rights reserved.</p>
             <p className="mt-1">Remember to be respectful. Do not use this service for harassment.</p>
