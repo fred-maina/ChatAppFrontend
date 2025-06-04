@@ -86,7 +86,7 @@ const fetchUserChatsFromApi = async (token: string): Promise<Chat[]> => {
         errorMessage = errorData.message;
       }
     } catch (e) {
-      console.log(e);
+      // console.log(e); 
     }
     console.error("API Error fetching chats (response not ok):", response.status, errorMessage);
     throw new Error(errorMessage);
@@ -148,7 +148,7 @@ function DashboardContent() {
   const [isSetUsernameModalOpen, setIsSetUsernameModalOpen] = useState(false);
   const [modalEmail, setModalEmail] = useState<string | null>(null);
   const [modalToken, setModalToken] = useState<string | null>(null);
-  const [isInitialUserLoadComplete, setIsInitialUserLoadComplete] = useState(false); // New state to track if user data fetch is done
+  const [isInitialUserLoadComplete, setIsInitialUserLoadComplete] = useState(false);
 
   const [chats, setChats] = useState<Chat[]>([]);
   const [selectedChat, setSelectedChat] = useState<Chat | null>(null);
@@ -157,16 +157,19 @@ function DashboardContent() {
   const [chatModalContent, setChatModalContent] = useState<{
     title: string;
     confirmText: string;
-    action: 'delete' | 'close_chat' | null;
+    action: 'delete' | 'close_chat' | 'logout' | null;
     bodyText?: string;
     isDestructive?: boolean;
-  }>({ title: '', confirmText: '', action: null });
+  }>({ title: '', confirmText: '', action: null, bodyText: '', isDestructive: false });
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
   const [isLoadingChats, setIsLoadingChats] = useState(false);
   const ws = useRef<WebSocket | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
   const [notificationPermission, setNotificationPermission] = useState<NotificationPermission>('default');
+  
+  const [initialChatsFetchAttempted, setInitialChatsFetchAttempted] = useState(false);
+
 
   useEffect(() => {
     if (typeof window !== "undefined" && "Notification" in window) {
@@ -183,8 +186,10 @@ function DashboardContent() {
     ws.current = null;
     localStorage.removeItem("token");
     setUser(null); setChats([]); setSelectedChat(null);
+    setInitialChatsFetchAttempted(false);
+    setIsInitialUserLoadComplete(false); 
     router.push("/auth?logged_out=true");
-  }, [router, setChats, setSelectedChat, setUser]);
+  }, [router]); 
 
   const requestNotificationPermission = useCallback(async () => {
     if (typeof window !== "undefined" && "Notification" in window) {
@@ -211,44 +216,41 @@ function DashboardContent() {
     } else {
       setUserError("This browser does not support desktop notifications.");
     }
-  }, [setNotificationPermission, setUserError]);
+  }, []);
 
+  const handleChatSelect = useCallback((chat: Chat) => {
+    router.push(`/dashboard?chatId=${chat.id}`, { scroll: false });
+
+    const currentUnreadCount = chat.unreadCount || 0;
+
+    setChats(prevChats =>
+        prevChats.map(c =>
+            c.id === chat.id ? { ...c, unreadCount: 0 } : c
+        ).sort((a,b) => new Date(b.lastMessageTimestamp || 0).getTime() - new Date(a.lastMessageTimestamp || 0).getTime())
+    );
+
+    setSelectedChat({ ...chat, unreadCount: 0 });
+
+    if (currentUnreadCount > 0 && ws.current && ws.current.readyState === WebSocket.OPEN) {
+        const markAsReadMessage: WebSocketMessagePayload = {
+            type: "MARK_AS_READ",
+            chatId: chat.id,
+        };
+        try {
+            ws.current.send(JSON.stringify(markAsReadMessage));
+            console.log("Sent MARK_AS_READ when selecting chat:", chat.id);
+        } catch (error) {
+            console.error("Failed to send MARK_AS_READ message when selecting chat:", error);
+        }
+    }
+  }, [router]); 
 
   const playNotificationSound = useCallback(() => {
     if (audioRef.current) {
       audioRef.current.currentTime = 0;
       audioRef.current.play().catch(error => console.warn("Error playing notification sound:", error));
     }
-  }, [audioRef]);
-
-  const handleChatSelect = useCallback((chat: Chat) => {
-    const isNewChatSelected = !selectedChat || selectedChat.id !== chat.id;
-    const currentUnreadCount = chat.unreadCount || 0;
-
-    setSelectedChat(prevSelected => {
-        if (isNewChatSelected) {
-            setChats(prevChats =>
-                prevChats.map(c =>
-                    c.id === chat.id ? { ...c, unreadCount: 0 } : c
-                ).sort((a,b) => new Date(b.lastMessageTimestamp || 0).getTime() - new Date(a.lastMessageTimestamp || 0).getTime())
-            );
-            if (currentUnreadCount > 0 && ws.current && ws.current.readyState === WebSocket.OPEN) {
-                const markAsReadMessage: WebSocketMessagePayload = {
-                    type: "MARK_AS_READ",
-                    chatId: chat.id,
-                };
-                try {
-                    ws.current.send(JSON.stringify(markAsReadMessage));
-                    console.log("Sent MARK_AS_READ for chat:", chat.id);
-                } catch (error) {
-                    console.error("Failed to send MARK_AS_READ message:", error);
-                }
-            }
-            return {...chat, unreadCount: 0};
-        }
-        return prevSelected;
-    });
-  }, [selectedChat, setChats, setSelectedChat]);
+  }, []);
 
   const showBrowserNotification = useCallback((title: string, body: string, chatId: string | number) => {
     if (notificationPermission === 'granted') {
@@ -262,23 +264,38 @@ function DashboardContent() {
         window.focus();
         const chatToSelect = chats.find(c => c.id === chatId);
         if (chatToSelect) {
-          handleChatSelect(chatToSelect);
+          handleChatSelect(chatToSelect); 
         }
         notification.close();
       };
     }
   }, [notificationPermission, chats, handleChatSelect]);
 
+  const latestPlayNotificationSoundRef = useRef(playNotificationSound);
+  const latestShowBrowserNotificationRef = useRef(showBrowserNotification);
+
+  useEffect(() => {
+    latestPlayNotificationSoundRef.current = playNotificationSound;
+  }, [playNotificationSound]);
+
+  useEffect(() => {
+    latestShowBrowserNotificationRef.current = showBrowserNotification;
+  }, [showBrowserNotification]);
+
 
   const connectWebSocket = useCallback((token: string) => {
-    if (ws.current && ws.current.readyState === WebSocket.OPEN) {
-        console.log("WebSocket already connected.");
+    if (ws.current && (ws.current.readyState === WebSocket.OPEN || ws.current.readyState === WebSocket.CONNECTING)) {
+        console.log("WebSocket already connected or connecting.");
         return;
     }
     if (!token) {
         console.error("No token available for WebSocket connection.");
         setUserError("Authentication token missing, cannot connect to chat server.");
         if (typeof window !== "undefined") router.push("/auth?error=ws_token_missing");
+        return;
+    }
+     if (!user?.username) { 
+        console.error("Username not available for WebSocket connection. User:", user);
         return;
     }
 
@@ -298,7 +315,7 @@ function DashboardContent() {
             console.log("Dashboard received message:", messagePayload);
 
             if (messagePayload.type === "ANON_TO_USER") {
-                const anonSessionId = messagePayload.from;
+                const anonSessionId = messagePayload.from; 
                 const nickname = messagePayload.nickname || "Anonymous";
                 const newMessageTimestamp = messagePayload.timestamp ? new Date(messagePayload.timestamp) : new Date();
 
@@ -310,64 +327,77 @@ function DashboardContent() {
                     originalTimestamp: newMessageTimestamp.toISOString(),
                     nickname: nickname,
                 };
+                
+                setSelectedChat(currentSelectedChat => {
+                    const isForCurrentlySelectedChat = currentSelectedChat && currentSelectedChat.id === anonSessionId;
 
-                setChats(prevChats => {
-                    let chatExists = false;
-                    const updatedChats = prevChats.map(chat => {
-                        if (chat.id === anonSessionId) {
-                            chatExists = true;
-                            const updatedMessages = [...chat.messages, newAppMessage]
-                                .sort((a,b) => new Date(a.originalTimestamp).getTime() - new Date(b.originalTimestamp).getTime());
-                            return {
-                                ...chat,
-                                messages: updatedMessages,
+                    setChats(prevChats => {
+                        let chatExists = false;
+                        const updatedChats = prevChats.map(chat => {
+                            if (chat.id === anonSessionId) {
+                                chatExists = true;
+                                return {
+                                    ...chat,
+                                    messages: [...chat.messages, newAppMessage]
+                                        .sort((a,b) => new Date(a.originalTimestamp).getTime() - new Date(b.originalTimestamp).getTime()),
+                                    messagePreview: newAppMessage.text,
+                                    unreadCount: isForCurrentlySelectedChat ? 0 : (chat.unreadCount || 0) + 1,
+                                    lastMessageTimestamp: newMessageTimestamp.toISOString(),
+                                };
+                            }
+                            return chat;
+                        });
+
+                        if (chatExists) {
+                            return updatedChats.sort((a,b) => new Date(b.lastMessageTimestamp || 0).getTime() - new Date(a.lastMessageTimestamp || 0).getTime());
+                        } else {
+                            const newChat: Chat = {
+                                id: anonSessionId || `new-${Date.now()}`, 
+                                sender: nickname,
                                 messagePreview: newAppMessage.text,
-                                unreadCount: (selectedChat && selectedChat.id === anonSessionId) ? 0 : (chat.unreadCount || 0) + 1,
+                                messages: [newAppMessage],
+                                avatar: `https://i.pravatar.cc/150?u=${anonSessionId}`,
+                                isAnonymous: true,
+                                unreadCount: isForCurrentlySelectedChat ? 0 : 1,
                                 lastMessageTimestamp: newMessageTimestamp.toISOString(),
                             };
+                            return [newChat, ...prevChats].sort((a,b) => new Date(b.lastMessageTimestamp || 0).getTime() - new Date(a.lastMessageTimestamp || 0).getTime());
                         }
-                        return chat;
                     });
 
-                    if (chatExists) {
-                        return updatedChats.sort((a,b) => new Date(b.lastMessageTimestamp || 0).getTime() - new Date(a.lastMessageTimestamp || 0).getTime());
+                    if (isForCurrentlySelectedChat) {
+                        if (ws.current && ws.current.readyState === WebSocket.OPEN) {
+                            const markAsReadMessage: WebSocketMessagePayload = {
+                                type: "MARK_AS_READ",
+                                chatId: anonSessionId,
+                            };
+                            try {
+                                ws.current.send(JSON.stringify(markAsReadMessage));
+                                console.log("Sent MARK_AS_READ for incoming message in open chat:", anonSessionId);
+                            } catch (error) {
+                                console.error("Failed to send MARK_AS_READ for open chat:", error);
+                            }
+                        }
+                         return { 
+                            ...currentSelectedChat,
+                            messages: [...(currentSelectedChat?.messages || []), newAppMessage]
+                                 .sort((a,b) => new Date(a.originalTimestamp).getTime() - new Date(b.originalTimestamp).getTime()),
+                            messagePreview: newAppMessage.text,
+                            lastMessageTimestamp: newMessageTimestamp.toISOString(),
+                            unreadCount: 0 
+                        };
                     } else {
-                        const newChat: Chat = {
-                            id: anonSessionId || "",
-                            sender: nickname,
-                            messagePreview: newAppMessage.text,
-                            messages: [newAppMessage],
-                            avatar: `https://i.pravatar.cc/150?u=${anonSessionId}`,
-                            isAnonymous: true,
-                            unreadCount: (selectedChat && selectedChat.id === anonSessionId) ? 0 : 1,
-                            lastMessageTimestamp: newMessageTimestamp.toISOString(),
-                        };
-                        return [newChat, ...prevChats].sort((a,b) => new Date(b.lastMessageTimestamp || 0).getTime() - new Date(a.lastMessageTimestamp || 0).getTime());
+                         latestPlayNotificationSoundRef.current();
+                         if (document.hidden) {
+                           latestShowBrowserNotificationRef.current(
+                             `New Message from ${nickname}`,
+                             newAppMessage.text,
+                             anonSessionId || ""
+                           );
+                         }
                     }
+                    return currentSelectedChat; 
                 });
-
-                setSelectedChat(prevSelected => {
-                    if (prevSelected && prevSelected.id === anonSessionId) {
-                        const updatedMessages = [...prevSelected.messages, newAppMessage]
-                             .sort((a,b) => new Date(a.originalTimestamp).getTime() - new Date(b.originalTimestamp).getTime());
-                        return {
-                            ...prevSelected,
-                            messages: updatedMessages,
-                            messagePreview: newAppMessage.text,
-                            lastMessageTimestamp: newMessageTimestamp.toISOString(),
-                        };
-                    }
-                    return prevSelected;
-                });
-
-                playNotificationSound();
-                if (document.hidden || (selectedChat && selectedChat.id !== anonSessionId)) {
-                  showBrowserNotification(
-                    `New Message from ${nickname}`,
-                    newAppMessage.text,
-                    anonSessionId || ""
-                  );
-                }
 
             } else if (messagePayload.type === "ERROR") {
                 console.error("WebSocket server error:", messagePayload.content);
@@ -387,7 +417,7 @@ function DashboardContent() {
         setTimeout(() => {
             const currentToken = localStorage.getItem("token");
             if (currentToken && user?.username && (!ws.current || ws.current.readyState === WebSocket.CLOSED)) {
-                 console.log("Retrying WebSocket connection...");
+                 console.log("Retrying WebSocket connection from onerror...");
                  connectWebSocket(currentToken);
             }
         }, 5000 + Math.random() * 3000);
@@ -407,39 +437,33 @@ function DashboardContent() {
              }, 5000 + Math.random() * 3000);
         }
     };
-  }, [ws, setUserError, router, user?.username, setChats, setSelectedChat, playNotificationSound, showBrowserNotification, selectedChat, notificationPermission, chats]);
+  }, [user?.username, router]); 
 
-  // Effect 1: Handles initial user loading and opens SetUsernameModal if needed
+
   useEffect(() => {
     const tokenFromStorage = localStorage.getItem("token");
     const action = searchParams.get("action");
     const emailFromQuery = searchParams.get("email");
     const tempTokenFromQuery = searchParams.get("tempToken");
 
-    // Scenario 1: Initial load with action=setUsername from OAuth callback
     if (action === "setUsername" && emailFromQuery && tempTokenFromQuery && !isSetUsernameModalOpen) {
         setModalEmail(emailFromQuery);
         setModalToken(tempTokenFromQuery);
-        setIsLoadingUser(false); // Not loading user, but waiting for username
+        setIsLoadingUser(false); 
         setIsSetUsernameModalOpen(true);
-        // Do not set isInitialUserLoadComplete yet, as username isn't finalized
-        return; // Important: Stop execution of this useEffect run
+        return; 
     }
 
-    // Scenario 2: No token, redirect to auth
     if (!tokenFromStorage && !isSetUsernameModalOpen) {
       router.push("/auth?error=no_token");
       return;
     }
-
-    // Scenario 3: User data already loaded and processed, no need to re-fetch /me
-    // This condition prevents repeated /me calls
-    if (isInitialUserLoadComplete) {
-        setIsLoadingUser(false); // Ensure loading is false
-        return;
+    
+    if (isInitialUserLoadComplete) { 
+        setIsLoadingUser(false); 
+        return; 
     }
 
-    // If we reach here, we need to fetch user data for the first time
     setIsLoadingUser(true);
     fetch(`${API_BASE_URL}/api/auth/me`, {
         headers: { Authorization: `Bearer ${tokenFromStorage}` },
@@ -472,17 +496,15 @@ function DashboardContent() {
         if (fetchedUser.username === null) {
             setModalEmail(fetchedUser.email || null);
             setModalToken(tokenFromStorage);
-            setIsSetUsernameModalOpen(true); // Open modal if username is null
+            setIsSetUsernameModalOpen(true); 
         } else {
-            // Username is set, mark initial load complete
-            setIsInitialUserLoadComplete(true);
+            setIsInitialUserLoadComplete(true); 
         }
     })
     .catch(err => {
         console.error("Failed to fetch user data:", err);
         setUserError((err as Error).message || "Failed to load dashboard data. Please try logging in again.");
         localStorage.removeItem("token");
-        // Only redirect if username modal is not being handled
         if (!isSetUsernameModalOpen && action !== "setUsername") {
              router.push("/auth?error=load_failed");
         }
@@ -491,54 +513,87 @@ function DashboardContent() {
         setIsLoadingUser(false);
     });
 
-    // Cleanup for WebSocket connection on unmount (redundant due to connectWebSocket's return, but good for safety)
-    return () => {
+    return () => { 
         if (ws.current && ws.current.readyState === WebSocket.OPEN) {
             ws.current.close(1000, "Dashboard unmounting");
         }
         ws.current = null;
     };
-  }, [router, searchParams, isSetUsernameModalOpen, isInitialUserLoadComplete]); // Add isInitialUserLoadComplete to dependencies
+  }, [router, searchParams, isSetUsernameModalOpen, isInitialUserLoadComplete]); 
 
 
-  // Effect 2: Handles WebSocket connection and initial chat fetching after user is fully loaded and username is set
   useEffect(() => {
     const tokenFromStorage = localStorage.getItem("token");
-    if (isInitialUserLoadComplete && user && user.username !== null && tokenFromStorage) {
-        // Connect WebSocket if not already connected
-        if (!ws.current || ws.current.readyState === WebSocket.CLOSED) {
-            connectWebSocket(tokenFromStorage);
+    if (isInitialUserLoadComplete && user && user.username && tokenFromStorage) {
+      if (!ws.current || ws.current.readyState === WebSocket.CLOSED || ws.current.readyState === WebSocket.CLOSING) {
+        if (ws.current?.readyState !== WebSocket.CONNECTING) {
+          connectWebSocket(tokenFromStorage);
         }
+      }
 
-        // Fetch chats if not already loaded (and not currently loading)
-        if (chats.length === 0 && !isLoadingChats) {
-            setIsLoadingChats(true);
-            fetchUserChatsFromApi(tokenFromStorage)
-            .then(fetchedApiChats => {
-                setChats(fetchedApiChats);
-            })
-            .catch(err => {
-                console.error("Failed to fetch initial chats:", err);
-                setUserError("Could not load your conversations initially. " + (err as Error).message);
-            })
-            .finally(() => setIsLoadingChats(false));
+      if (!initialChatsFetchAttempted) {
+        console.log("Condition met: Fetching initial chats. initialChatsFetchAttempted:", initialChatsFetchAttempted);
+        setInitialChatsFetchAttempted(true); 
+        setIsLoadingChats(true);
+
+        fetchUserChatsFromApi(tokenFromStorage)
+          .then(fetchedApiChats => {
+            console.log("fetchUserChatsFromApi successful, fetched count:", fetchedApiChats.length);
+            setChats(fetchedApiChats);
+            const chatIdFromUrl = searchParams.get('chatId');
+            if (chatIdFromUrl) {
+              const chatToSelect = fetchedApiChats.find(c => c.id.toString() === chatIdFromUrl);
+              if (chatToSelect && (!selectedChat || selectedChat.id.toString() !== chatIdFromUrl)) {
+                handleChatSelect(chatToSelect);
+              }
+            }
+          })
+          .catch(err => {
+            console.error("Failed to fetch initial chats inside useEffect:", err);
+            setUserError("Could not load your conversations. " + ((err as Error).message || "Please try refreshing."));
+          })
+          .finally(() => {
+            setIsLoadingChats(false);
+          });
+      }
+    }
+  }, [
+    isInitialUserLoadComplete,
+    user, 
+    initialChatsFetchAttempted, 
+    connectWebSocket, 
+    searchParams, 
+    handleChatSelect, 
+    selectedChat?.id 
+  ]);
+
+
+  useEffect(() => {
+    const chatIdFromUrl = searchParams.get('chatId');
+    if (isInitialUserLoadComplete && user && user.username && (chats.length > 0 || initialChatsFetchAttempted) ) {
+        if (chatIdFromUrl) {
+            const chatToSelect = chats.find(c => c.id.toString() === chatIdFromUrl);
+            if (chatToSelect) {
+                if (!selectedChat || selectedChat.id.toString() !== chatIdFromUrl) {
+                    handleChatSelect(chatToSelect);
+                }
+            } else {
+                if (initialChatsFetchAttempted && !isLoadingChats) { 
+                    if (selectedChat) setSelectedChat(null); 
+                    router.push('/dashboard', { scroll: false }); 
+                }
+            }
         }
     }
-  }, [isInitialUserLoadComplete, user, chats.length, isLoadingChats, connectWebSocket]); // Depend on user and isInitialUserLoadComplete
+  }, [searchParams, chats, isInitialUserLoadComplete, user?.username, initialChatsFetchAttempted, isLoadingChats, handleChatSelect, selectedChat, router]);
 
-  // This useEffect ensures the username modal is only closed when needed.
-  // This effect will only run if the username modal was explicitly closed AND username is still null
-  // This is the "forced logout" logic if user initiated username setting from OAuth and then aborted.
+
   useEffect(() => {
-    // Only apply this logic if the action is specifically to set username (e.g. from OAuth)
-    // AND the modal was closed (or never opened after trying to set username, but user.username is still null)
-    // AND the user still has no username.
-    // user && user.username === null : means user object is loaded but username is still empty
-    if (searchParams.get("action") === "setUsername" && !isSetUsernameModalOpen && user?.username === null && !isLoadingUser) {
+    if (searchParams.get("action") === "setUsername" && !isSetUsernameModalOpen && user?.username === null && !isLoadingUser && isInitialUserLoadComplete === false) {
       setUserError("A username is required to use the dashboard. Please log in again to set your username.");
       setTimeout(handleLogout, 3000);
     }
-  }, [isSetUsernameModalOpen, user?.username, router, handleLogout, searchParams, isLoadingUser]);
+  }, [isSetUsernameModalOpen, user?.username, router, handleLogout, searchParams, isLoadingUser, isInitialUserLoadComplete]);
 
 
   useEffect(() => {
@@ -556,29 +611,31 @@ function DashboardContent() {
   };
 
   const handleUsernameSet = (newUsername: string) => {
-    setIsSetUsernameModalOpen(false); // Close the modal
-    setUser(prevUser => prevUser ? {
-        ...prevUser, username: newUsername,
+    setIsSetUsernameModalOpen(false); 
+    const updatedUser = {
+        ...(user || {} as User), 
+        username: newUsername,
         chatLink: `${window.location.origin}/chat/${newUsername}`
-    } : null);
+    };
+    setUser(updatedUser as User);
 
-    router.replace("/dashboard", { scroll: false }); // Clean up URL params
+    router.replace("/dashboard", { scroll: false }); 
 
-    // If we used a temporary token from OAuth callback, store it permanently
     if (modalToken && localStorage.getItem("token") !== modalToken) {
         localStorage.setItem("token", modalToken);
     }
     setModalToken(null); setModalEmail(null);
-    setIsInitialUserLoadComplete(true); // Mark user as fully loaded with username
+    setIsInitialUserLoadComplete(true); 
   };
 
-  // This function is explicitly called when the user tries to close the modal
   const handleCloseUsernameModal = () => {
-    setIsSetUsernameModalOpen(false); // Set to false to close the modal
-    router.replace("/dashboard", { scroll: false }); // Clean up URL params
-    // The conditional logout will be handled by the useEffect for initial setup
+    setIsSetUsernameModalOpen(false); 
+    router.replace("/dashboard", { scroll: false }); 
+    if (user?.username === null) {
+        setUserError("Username setup was cancelled. Please log in again if you wish to set a username.");
+        setTimeout(handleLogout, 2000);
+    }
   };
-
 
   const handleSendMessage = async () => {
     if (!newMessage.trim() || !selectedChat) return;
@@ -589,7 +646,7 @@ function DashboardContent() {
     if (!ws.current || ws.current.readyState !== WebSocket.OPEN) {
         setUserError("Not connected to chat server. Please wait or refresh.");
         const token = localStorage.getItem("token");
-        if (token && user?.username) connectWebSocket(token);
+        if (token && user?.username) connectWebSocket(token); 
         return;
     }
 
@@ -641,37 +698,87 @@ function DashboardContent() {
             .sort((a,b) => new Date(b.lastMessageTimestamp || 0).getTime() - new Date(a.lastMessageTimestamp || 0).getTime())
         );
         setSelectedChat(prevSel => prevSel ? {...prevSel, messages: prevSel.messages.filter(m => m.id !== optimisticMessage.id)} : null);
-        setNewMessage(currentMessageText);
+        setNewMessage(currentMessageText); 
     }
+  };
+  
+  const handleBackFromChatView = () => {
+    setSelectedChat(null);
+    router.push('/dashboard', { scroll: false });
   };
 
   const openChatActionModal = (action: 'delete' | 'close_chat'| 'logout') => {
-    if (!selectedChat) return;
-    if (action === 'delete') {
-      setChatModalContent({ title: 'Delete Chat?', bodyText: `This will remove the chat with ${selectedChat.sender} from your view. This action may not be recoverable.`, confirmText: 'Delete', action: 'delete', isDestructive: true });
-    } else if (action === 'close_chat') {
-      setChatModalContent({ title: 'Close Chat?', bodyText: `Close chat with ${selectedChat.sender}? You can reopen it from the sidebar.`, confirmText: 'Close', action: 'close_chat', isDestructive: false });
+    if (!selectedChat && action !== 'logout') return; 
+     if (action === 'logout') {
+      setChatModalContent({ title: 'Logout?', bodyText: `Are you sure you want to logout from AnonMsg?`, confirmText: 'Logout', action: 'logout', isDestructive: true });
+    } else if (selectedChat) {
+        if (action === 'delete') {
+          setChatModalContent({ title: 'Delete Chat?', bodyText: `This will permanently delete the chat with ${selectedChat.sender}. This action cannot be undone.`, confirmText: 'Delete Permanently', action: 'delete', isDestructive: true });
+        } else if (action === 'close_chat') { 
+          setChatModalContent({ title: 'Close Chat?', bodyText: `Close chat with ${selectedChat.sender}? You can reopen it from the sidebar.`, confirmText: 'Close', action: 'close_chat', isDestructive: false });
+        }
     }
     setIsChatModalOpen(true);
   };
 
   const handleConfirmChatModal = async () => {
-    if (!selectedChat || !chatModalContent.action) {
-        setIsChatModalOpen(false); return;
+    if (!chatModalContent.action) {
+        setIsChatModalOpen(false);
+        return;
     }
-    const currentSelectedChatId = selectedChat.id;
+    
+    if (chatModalContent.action === 'logout') {
+        handleLogout();
+        setIsChatModalOpen(false); 
+    } else if (selectedChat && chatModalContent.action === 'delete') {
+        const currentSelectedChatId = selectedChat.id.toString();
+        const token = localStorage.getItem("token");
 
-    if (chatModalContent.action === 'delete') {
-        setChats(prevChats => prevChats.filter(chat => chat.id !== currentSelectedChatId));
+        if (!token) {
+            setUserError("Authentication token not found. Cannot delete chat.");
+            setIsChatModalOpen(false);
+            return;
+        }
+        
+        // Optional: Add a loading state for the modal confirm button
+        // e.g., setChatModalContent(prev => ({ ...prev, isLoading: true }));
+
+        try {
+            const response = await fetch(`${API_BASE_URL}/api/chat/${currentSelectedChatId}`, {
+                method: 'DELETE',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                },
+            });
+
+            if (response.ok) {
+                setChats(prevChats => prevChats.filter(chat => chat.id.toString() !== currentSelectedChatId));
+                setSelectedChat(null);
+                router.push('/dashboard', { scroll: false }); 
+                // Optionally, show a success toast/message here
+            } else {
+                const errorData = await response.json().catch(() => ({ message: "Failed to delete chat. Server returned an error." }));
+                setUserError(errorData.message || `Failed to delete chat. Status: ${response.status}`);
+            }
+        } catch (error) {
+            console.error("Error deleting chat session:", error);
+            setUserError("An unexpected error occurred while trying to delete the chat.");
+        } finally {
+            setIsChatModalOpen(false);
+            // setChatModalContent(prev => ({ ...prev, isLoading: false })); // Reset loading state
+        }
+
+    } else if (selectedChat && chatModalContent.action === 'close_chat') {
         setSelectedChat(null);
-    } else if (chatModalContent.action === 'close_chat') {
-      setSelectedChat(null);
+        router.push('/dashboard', { scroll: false }); 
+        setIsChatModalOpen(false);
+    } else {
+        setIsChatModalOpen(false);
     }
-    setIsChatModalOpen(false);
   };
 
 
-  if (isLoadingUser && !isSetUsernameModalOpen && !modalToken) {
+  if (isLoadingUser && !isInitialUserLoadComplete && !isSetUsernameModalOpen && !modalToken) {
     return (
       <div className="min-h-screen bg-gray-100 flex flex-col items-center justify-center p-4">
         <Loader2 className="w-12 h-12 text-teal-500 animate-spin mb-4" />
@@ -693,7 +800,6 @@ function DashboardContent() {
     );
   }
 
-  // Render the SetUsernameModal if it should be open
   if (isSetUsernameModalOpen) {
     return (
       <>
@@ -708,16 +814,13 @@ function DashboardContent() {
     );
   }
 
-  // If we reach here, modal is not open, and user should exist and have a username.
-  if (!user || user.username === null) {
-      // This is a fallback in case the state is inconsistent.
-      // It should ideally be caught by the modal opening logic above.
-      console.warn("User is not fully loaded or username is null, but modal is not open. Redirecting.");
-      if (typeof window !== "undefined") router.push("/auth?error=unknown_state_no_username");
-      return (
+  if ((!isInitialUserLoadComplete || !user || user.username === null) && !isLoadingUser) {
+      console.warn("User data incomplete or username null, redirecting to auth.");
+      if (typeof window !== "undefined") router.push("/auth?error=user_setup_incomplete");
+      return ( 
         <div className="min-h-screen bg-gray-100 flex flex-col items-center justify-center p-4">
             <Loader2 className="w-10 h-10 text-teal-500 animate-spin mr-3" />
-            <p className="text-gray-600 text-lg">Finalizing dashboard...</p>
+            <p className="text-gray-600 text-lg">Redirecting...</p>
         </div>
       );
   }
@@ -728,7 +831,8 @@ function DashboardContent() {
       <div className="h-screen flex flex-col md:flex-row font-['Inter',_sans-serif] bg-gray-100 overflow-hidden">
 
         <aside className={`
-          ${selectedChat ? 'hidden' : 'flex'} md:flex
+          ${selectedChat && searchParams.get('chatId') ? 'hidden' : 'flex'} 
+          md:flex
           flex-col w-full md:w-80 lg:w-96
           bg-gray-50 border-r border-gray-200
           h-full md:h-auto md:overflow-y-auto
@@ -748,7 +852,7 @@ function DashboardContent() {
                 >
                     <BellDot size={20} />
                 </button>
-                <button onClick={handleLogout} title="Logout" className="p-2 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"><LogOut size={20} /></button>
+                <button onClick={() => openChatActionModal('logout')} title="Logout" className="p-2 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"><LogOut size={20} /></button>
             </div>
           </div>
 
@@ -770,7 +874,7 @@ function DashboardContent() {
                 >
                     <BellDot size={20} />
                 </button>
-                <button onClick={handleLogout} title="Logout" className="p-2 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"><LogOut size={20} /></button>
+                <button onClick={() => openChatActionModal('logout')} title="Logout" className="p-2 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"><LogOut size={20} /></button>
              </div>
           </div>
 
@@ -780,38 +884,48 @@ function DashboardContent() {
                     Your Anonymous Link:
                 </h3>
                 <div className="bg-white p-2.5 rounded-lg text-xs text-teal-800 break-all mb-2.5 shadow-sm border border-teal-200 min-h-[3.5em] flex items-center">
-                    {user.chatLink || (user.username ? `${window.location.origin}/chat/${user.username}` : "Set username to get link")}
+                    {user?.chatLink || (user?.username ? `${window.location.origin}/chat/${user.username}` : "Set username to get link")}
                 </div>
-                <button onClick={handleCopyLink} disabled={!user.chatLink || copiedLink}
-                    className={`w-full flex items-center justify-center space-x-1.5 px-3 py-2.5 border rounded-lg text-sm font-medium transition-colors ${!user.chatLink ? 'bg-gray-200 text-gray-500 cursor-not-allowed' : copiedLink ? 'bg-green-500 text-white border-green-600' : 'bg-teal-500 text-white border-teal-600 hover:bg-teal-600 focus:ring-2 focus:ring-teal-400'}`}>
+                <button onClick={handleCopyLink} disabled={!user?.chatLink || copiedLink}
+                    className={`w-full flex items-center justify-center space-x-1.5 px-3 py-2.5 border rounded-lg text-sm font-medium transition-colors ${!user?.chatLink ? 'bg-gray-200 text-gray-500 cursor-not-allowed' : copiedLink ? 'bg-green-500 text-white border-green-600' : 'bg-teal-500 text-white border-teal-600 hover:bg-teal-600 focus:ring-2 focus:ring-teal-400'}`}>
                     <Copy size={16} /><span>{copiedLink ? "Link Copied!" : "Copy My Link"}</span>
                 </button>
                 <p className="text-xs text-teal-600 mt-2.5">Share this link anywhere to start receiving anonymous messages!</p>
             </div>
 
           <div className="flex-grow overflow-y-auto p-2">
-            {isLoadingChats && chats.length === 0 ? (
-                <div className="flex justify-center items-center h-40"><Loader2 className="w-8 h-8 text-teal-500 animate-spin" /></div>
-            ) : chats.length > 0 ? (
+            {isLoadingChats ? ( 
+                <div className="flex justify-center items-center h-full text-teal-500 p-4"> 
+                    <Loader2 className="w-8 h-8 animate-spin mr-2" />
+                    <span>Loading your conversations...</span>
+                </div>
+            ) : initialChatsFetchAttempted && chats.length === 0 ? ( 
+              <div className="text-center text-gray-500 py-10 px-4">
+                <MessageSquareText size={48} className="mx-auto mb-3 text-gray-400" />
+                <h3 className="font-semibold text-lg text-gray-600 mb-1">No Chats Found</h3>
+                <p className="text-sm">Please share your link to start receiving chats.</p>
+              </div>
+            ) : chats.length > 0 ? ( 
               <SidebarContent chats={chats} selectedChat={selectedChat} onChatSelect={handleChatSelect} />
             ) : (
-              <div className="text-center text-gray-500 py-10 px-4">
-                <MessageSquareText size={40} className="mx-auto mb-2 text-gray-400" />
-                <h3 className="font-semibold text-md text-gray-600">No Chats Yet</h3>
-                <p className="text-xs">Messages from your link will appear here.</p>
-              </div>
+              !initialChatsFetchAttempted && (!user || !user.username) ?
+              <div className="text-center text-gray-400 py-10 px-4 text-sm">Please complete user setup to see chats.</div> :
+              !initialChatsFetchAttempted ?
+              <div className="text-center text-gray-400 py-10 px-4 text-sm">Preparing to load chats...</div>
+              : null 
             )}
           </div>
         </aside>
 
         <main className={`
-          ${selectedChat ? 'flex' : 'hidden'} md:flex
+          ${selectedChat && searchParams.get('chatId') ? 'flex' : 'hidden'} 
+          md:flex
           flex-grow flex-col relative overflow-hidden bg-white
           h-full md:h-auto
         `}>
-          {selectedChat ? (
+          {selectedChat && searchParams.get('chatId') === selectedChat.id.toString() ? ( 
             <ChatView key={selectedChat.id} chat={selectedChat} onSendMessage={handleSendMessage} newMessage={newMessage} setNewMessage={setNewMessage} messagesEndRef={messagesEndRef}
-                      onBack={() => setSelectedChat(null)}
+                      onBack={handleBackFromChatView} 
                       onOpenModal={openChatActionModal} />
           ) : (
             <div className="hidden md:flex flex-col flex-grow items-center justify-center p-6 md:p-10 bg-white text-center">
@@ -833,7 +947,7 @@ function DashboardContent() {
           )}
         </main>
       </div>
-      <Modal isOpen={isChatModalOpen} onClose={() => setIsChatModalOpen(false)} onConfirm={handleConfirmChatModal} title={chatModalContent.title} confirmButtonText={chatModalContent.confirmText} isDestructive={chatModalContent.isDestructive}>
+      <Modal isOpen={isChatModalOpen} onClose={() => setIsChatModalOpen(false)} onConfirm={handleConfirmChatModal} title={chatModalContent.title} confirmButtonText={chatModalContent.confirmText} isDestructive={chatModalContent.isDestructive ?? false}>
         {chatModalContent.bodyText && <p className="text-gray-600 text-sm">{chatModalContent.bodyText}</p>}
       </Modal>
     </>
