@@ -2,7 +2,7 @@
 "use client";
 
 import React, { useEffect, useState, useRef, Suspense, useCallback } from "react";
-import { useRouter, useSearchParams, usePathname } from "next/navigation"; // Added usePathname
+import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import {
   AlertTriangle,
   Loader2,
@@ -13,7 +13,6 @@ import Modal from "../Components/Modal";
 import SetUsernameModal from "../Components/SetUsernameModal";
 import { Chat, ChatMessage, WebSocketMessagePayload, User } from "../types"; 
 
-// Import new sub-components
 import DashboardSidebar from "./components/DashBoardSidebar";
 import ChatArea from "./components/ChatArea";
 
@@ -95,7 +94,7 @@ const fetchUserChatsFromApi = async (token: string): Promise<Chat[]> => {
 function DashboardContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const pathname = usePathname(); // Get current pathname
+  const pathname = usePathname(); 
 
   const [user, setUser] = useState<User | null>(null);
   const [isLoadingUser, setIsLoadingUser] = useState(true);
@@ -175,19 +174,6 @@ function DashboardContent() {
     }
   }, []);
 
-  const handleChatSelect = useCallback((chat: Chat) => {
-    router.push(`/dashboard?chatId=${chat.id}`, { scroll: false });
-    const currentUnreadCount = chat.unreadCount || 0;
-    setChats(prev => prev.map(c => c.id === chat.id ? { ...c, unreadCount: 0 } : c)
-                         .sort((a,b) => new Date(b.lastMessageTimestamp || 0).getTime() - new Date(a.lastMessageTimestamp || 0).getTime()));
-    setSelectedChat({ ...chat, unreadCount: 0 });
-    if (currentUnreadCount > 0 && ws.current?.readyState === WebSocket.OPEN) {
-      try {
-        ws.current.send(JSON.stringify({ type: "MARK_AS_READ", chatId: chat.id } as WebSocketMessagePayload));
-      } catch (e) { console.error("Failed to send MARK_AS_READ", e); }
-    }
-  }, [router]);
-
   const playNotificationSound = useCallback(() => {
     audioRef.current?.play().catch(e => console.warn("Sound play error:", e));
   }, []);
@@ -197,20 +183,101 @@ function DashboardContent() {
       const notification = new Notification(title, { body, icon: NOTIFICATION_ICON_URL, tag: `anonmsg-chat-${chatId}` });
       notification.onclick = () => {
         window.focus();
-        setChats(prev => { 
-          const chatToSelect = prev.find(c => c.id === chatId);
-          if (chatToSelect) handleChatSelect(chatToSelect); 
-          return prev;
-        });
+         // Re-select the chat when notification is clicked
+        const chatToSelect = chats.find(c => c.id.toString() === chatId.toString());
+        if (chatToSelect) {
+             // Directly call the selection logic here or a refined handleChatSelect
+            setSelectedChat({ ...chatToSelect, unreadCount: 0 });
+            setChats(prev => prev.map(c => c.id === chatToSelect.id ? { ...c, unreadCount: 0 } : c)
+                                 .sort((a,b) => new Date(b.lastMessageTimestamp || 0).getTime() - new Date(a.lastMessageTimestamp || 0).getTime()));
+            if (searchParams.get('chatId') !== chatToSelect.id.toString()) {
+                router.push(`/dashboard?chatId=${chatToSelect.id}`, { scroll: false });
+            }
+            if ((chatToSelect.unreadCount || 0) > 0 && ws.current?.readyState === WebSocket.OPEN) {
+                try {
+                    ws.current.send(JSON.stringify({ type: "MARK_AS_READ", chatId: chatToSelect.id } as WebSocketMessagePayload));
+                } catch (e) { console.error("Failed to send MARK_AS_READ on notification click", e); }
+            }
+        }
         notification.close();
       };
     }
-  }, [notificationPermission, handleChatSelect]); 
+  }, [notificationPermission, router, searchParams, chats, ws ]); // Added chats and ws
+
 
   const latestPlayNotificationSoundRef = useRef(playNotificationSound);
   const latestShowBrowserNotificationRef = useRef(showBrowserNotification);
   useEffect(() => { latestPlayNotificationSoundRef.current = playNotificationSound; }, [playNotificationSound]);
   useEffect(() => { latestShowBrowserNotificationRef.current = showBrowserNotification; }, [showBrowserNotification]);
+  
+  // Called when a user clicks a chat in the sidebar
+  const handleChatSelect = useCallback((chat: Chat) => {
+      setSelectedChat({ ...chat, unreadCount: 0 });
+      setChats(prev => prev.map(c => c.id === chat.id ? { ...c, unreadCount: 0 } : c)
+                           .sort((a,b) => new Date(b.lastMessageTimestamp || 0).getTime() - new Date(a.lastMessageTimestamp || 0).getTime()));
+
+      if (searchParams.get('chatId') !== chat.id.toString()) {
+          router.push(`/dashboard?chatId=${chat.id}`, { scroll: false });
+      }
+
+      if ((chat.unreadCount || 0) > 0 && ws.current?.readyState === WebSocket.OPEN) {
+          try {
+              ws.current.send(JSON.stringify({ type: "MARK_AS_READ", chatId: chat.id } as WebSocketMessagePayload));
+          } catch (e) { console.error("Failed to send MARK_AS_READ on user select", e); }
+      }
+  }, [router, searchParams, ws]);
+
+  // Effect to synchronize selectedChat state with URL's chatId parameter
+  useEffect(() => {
+      const chatIdFromUrl = searchParams.get('chatId');
+
+      if (!isInitialUserLoadComplete || !user?.username) {
+          return; // Not ready yet
+      }
+
+      if (!chatIdFromUrl) { // No chatId in URL (e.g., /dashboard)
+          if (selectedChat !== null) {
+              setSelectedChat(null); // Clear selected chat if URL doesn't specify one
+          }
+          return;
+      }
+
+      // chatId is in URL. Check if current state matches.
+      if (selectedChat?.id?.toString() === chatIdFromUrl) {
+          // Already in sync, or was just set by handleChatSelect which also updated URL.
+          // Verify the chat still exists in the chats list, in case chats updated.
+          const chatExists = chats.find(c => c.id.toString() === chatIdFromUrl);
+          if (!chatExists && (initialChatsFetchAttempted && !isLoadingChats)) {
+             setSelectedChat(null); // Chat disappeared from list, deselect.
+             // router.push('/dashboard', { scroll: false }); // Optionally navigate away from invalid chat URL
+          }
+          return;
+      }
+      
+      // State needs to be updated based on URL
+      if (chats.length > 0 || initialChatsFetchAttempted) {
+          const chatToSelect = chats.find(c => c.id.toString() === chatIdFromUrl);
+          if (chatToSelect) {
+              setSelectedChat({ ...chatToSelect, unreadCount: 0 });
+              setChats(prev => prev.map(c => c.id === chatToSelect.id ? { ...c, unreadCount: 0 } : c)
+                                   .sort((a,b) => new Date(b.lastMessageTimestamp || 0).getTime() - new Date(a.lastMessageTimestamp || 0).getTime()));
+              if ((chatToSelect.unreadCount || 0) > 0 && ws.current?.readyState === WebSocket.OPEN) {
+                  try {
+                      ws.current.send(JSON.stringify({ type: "MARK_AS_READ", chatId: chatToSelect.id } as WebSocketMessagePayload));
+                  } catch (e) { console.error("Failed to send MARK_AS_READ on URL sync", e); }
+              }
+          } else {
+              // Chat ID in URL not found in current chats list
+              if (initialChatsFetchAttempted && !isLoadingChats) {
+                  setSelectedChat(null); // Clear selection for invalid chatId
+                  // Consider if navigating to /dashboard is desired if URL has an invalid chatId
+                  // For now, just clearing selection will make ChatArea show its placeholder.
+                  // router.push('/dashboard', { scroll: false });
+              }
+          }
+      }
+  }, [searchParams, chats, isInitialUserLoadComplete, user, initialChatsFetchAttempted, isLoadingChats, selectedChat, ws, router]);
+
 
   const scheduleReconnect = useCallback((token: string) => {
     if (reconnectAttemptsRef.current >= MAX_RECONNECT_ATTEMPTS) {
@@ -222,11 +289,10 @@ function DashboardContent() {
     if (reconnectTimeoutRef.current) clearTimeout(reconnectTimeoutRef.current);
     reconnectTimeoutRef.current = setTimeout(() => {
       if (user?.username && token && (!ws.current || ws.current.readyState === WebSocket.CLOSED)) {
-        // eslint-disable-next-line @typescript-eslint/no-use-before-define
         connectWebSocket(token, true);
       }
     }, delay);
-  }, [user?.username]); 
+  }, [user?.username]); // connectWebSocket will be memoized separately or defined in scope
 
   const connectWebSocket = useCallback((token: string, isReconnect: boolean = false) => {
     if (ws.current && (ws.current.readyState === WebSocket.OPEN || ws.current.readyState === WebSocket.CONNECTING)) return;
@@ -244,7 +310,6 @@ function DashboardContent() {
     if (userError?.includes('reconnect') || userError?.includes('lost') || userError?.includes('Chat connection error')) {
         setUserError(null);
     }
-
 
     const socket = new WebSocket(`${WEBSOCKET_BASE_URL}/ws/chat?token=${token}`);
     ws.current = socket;
@@ -306,17 +371,12 @@ function DashboardContent() {
               try { ws.current.send(JSON.stringify({ type: "MARK_AS_READ", chatId: anonSessionId } as WebSocketMessagePayload)); }
               catch (e) { console.error("Failed to send MARK_AS_READ", e); }
             }
-            const updatedCurrentSelectedChat: Chat = {
-                id: currentSel.id, 
-                sender: currentSel.sender, 
-                messagePreview: newAppMsg.text, 
+            return {
+                ...currentSel,
                 messages: [...(currentSel.messages || []), newAppMsg].sort((a,b)=>new Date(a.originalTimestamp).getTime() - new Date(b.originalTimestamp).getTime()),
                 lastMessageTimestamp: newMsgTimestamp.toISOString(), 
                 unreadCount: 0, 
-                avatar: currentSel.avatar, 
-                isAnonymous: currentSel.isAnonymous, 
             };
-            return updatedCurrentSelectedChat;
           } else {
             if (currentSel?.id !== anonSessionId) { 
                  latestPlayNotificationSoundRef.current();
@@ -350,7 +410,6 @@ function DashboardContent() {
         scheduleReconnect(token);
       }
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.username, router, scheduleReconnect, latestPlayNotificationSoundRef, latestShowBrowserNotificationRef, selectedChat?.id]); 
 
   useEffect(() => {
@@ -401,8 +460,7 @@ function DashboardContent() {
       if (ws.current?.readyState === WebSocket.OPEN) ws.current.close(1000, "Dashboard unmounting");
       ws.current = null;
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchParams, isSetUsernameModalOpen, isInitialUserLoadComplete]); 
+  }, [searchParams, isSetUsernameModalOpen, isInitialUserLoadComplete, router, handleLogout]); 
 
   useEffect(() => {
     const token = localStorage.getItem("token");
@@ -415,37 +473,13 @@ function DashboardContent() {
         fetchUserChatsFromApi(token)
           .then(apiChats => {
             setChats(apiChats);
-            const chatIdUrl = searchParams.get('chatId');
-            if (chatIdUrl) {
-              const chatSel = apiChats.find(c => c.id.toString() === chatIdUrl);
-              if (chatSel && (!selectedChat || selectedChat.id.toString() !== chatIdUrl)) handleChatSelect(chatSel);
-            }
+            // Initial URL sync for chat selection is handled by the dedicated useEffect for searchParams
           })
           .catch(err => setUserError(`Could not load convos: ${(err as Error).message}`))
           .finally(() => setIsLoadingChats(false));
       }
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isInitialUserLoadComplete, user, initialChatsFetchAttempted, searchParams, handleChatSelect, selectedChat?.id, isWebSocketConnecting]); 
-
-  useEffect(() => {
-    const chatIdUrl = searchParams.get('chatId');
-    if (isInitialUserLoadComplete && user?.username && (chats.length > 0 || initialChatsFetchAttempted)) {
-      if (chatIdUrl) {
-        const chatSel = chats.find(c => c.id.toString() === chatIdUrl);
-        if (chatSel) {
-          if (!selectedChat || selectedChat.id.toString() !== chatIdUrl) handleChatSelect(chatSel);
-        } else { 
-          if (initialChatsFetchAttempted && !isLoadingChats) { 
-            if (selectedChat) setSelectedChat(null); 
-            router.push('/dashboard', { scroll: false });
-          }
-        }
-      }
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchParams, chats, isInitialUserLoadComplete, user?.username, initialChatsFetchAttempted, isLoadingChats, handleChatSelect, selectedChat?.id]);
-
+  }, [isInitialUserLoadComplete, user, initialChatsFetchAttempted, connectWebSocket]); 
 
   useEffect(() => {
     if (selectedChat?.messages?.length) messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -463,7 +497,7 @@ function DashboardContent() {
     setIsSetUsernameModalOpen(false);
     const updatedU = { ...(user || {} as User), username: newUsername, chatLink: `${window.location.origin}/chat/${newUsername}` };
     setUser(updatedU as User);
-    router.replace("/dashboard", { scroll: false });
+    router.replace("/dashboard", { scroll: false }); // remove query params from set username action
     if (modalToken && localStorage.getItem("token") !== modalToken) localStorage.setItem("token", modalToken);
     setModalToken(null); setModalEmail(null);
     setIsInitialUserLoadComplete(true);
@@ -471,9 +505,9 @@ function DashboardContent() {
 
   const handleCloseUsernameModal = () => {
     setIsSetUsernameModalOpen(false);
-    router.replace("/dashboard", { scroll: false });
-    if (user?.username === null) {
-      setUserError("Username setup cancelled. Login again to set username.");
+    router.replace("/dashboard", { scroll: false }); // remove query params
+    if (user?.username === null) { // If username was required and modal was cancelled
+      setUserError("Username setup is required. Please login again to set your username.");
       setTimeout(handleLogout, 2000);
     }
   };
@@ -510,11 +544,11 @@ function DashboardContent() {
         ws.current.send(JSON.stringify(msgPayload)); 
         setUserError(null); 
       } else {
-          throw new Error("WebSocket not open. Message queued conceptually.");
+          throw new Error("WebSocket not open. Message conceptually queued.");
       }
     } catch (e) {
       console.error("Send message error:", e);
-      setUserError("Send failed. Message saved locally (conceptually)."); 
+      setUserError("Send failed. Message conceptually saved locally."); 
       setChats(prev => prev.map(c => c.id === selChatId ? { ...c, messages: c.messages.filter(m => m.id !== optimisticMsg.id) } : c));
       setSelectedChat(prevSel => prevSel ? { ...prevSel, messages: prevSel.messages.filter(m => m.id !== optimisticMsg.id) } : null);
       setNewMessage(currentMsgText); 
@@ -529,7 +563,7 @@ function DashboardContent() {
     if (ws.current?.readyState === WebSocket.OPEN) {
       sendViaWebSocketInternal();
     } else {
-      setUserError("Chat disconnected. Attempting to send...");
+      setUserError("Chat disconnected. Attempting to reconnect and send...");
       const token = localStorage.getItem("token");
       if (token && user?.username) {
         connectWebSocket(token); 
@@ -547,8 +581,15 @@ function DashboardContent() {
       }
     }
   };
+  
+  // Called by ChatView's back button
+  const handleBackFromChatView = useCallback(() => {
+      setSelectedChat(null);
+      if (searchParams.get('chatId')) { // Only push if chatId is in URL
+          router.push('/dashboard', { scroll: false });
+      }
+  }, [router, searchParams]);
 
-  const handleBackFromChatView = () => { setSelectedChat(null); router.push('/dashboard', { scroll: false }); };
 
   const openChatActionModal = (action: 'delete' | 'close_chat' | 'logout') => {
     if (!selectedChat && action !== 'logout') return;
@@ -572,19 +613,22 @@ function DashboardContent() {
             try {
                 const res = await fetch(`${API_BASE_URL}/api/chat/${selectedChat.id}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${token}` } });
                 if (res.ok) {
-                setChats(prev => prev.filter(c => c.id !== selectedChat.id));
-                setSelectedChat(null); router.push('/dashboard', { scroll: false });
+                  setChats(prev => prev.filter(c => c.id !== selectedChat.id));
+                  setSelectedChat(null); 
+                  router.push('/dashboard', { scroll: false }); // Navigate to base after delete
                 } else {
-                const errData = await res.json().catch(() => ({}));
-                setUserError(errData.message || `Delete failed: ${res.status}`);
+                  const errData = await res.json().catch(() => ({}));
+                  setUserError(errData.message || `Delete failed: ${res.status}`);
                 }
             } catch (e) { setUserError(`Delete error: ${(e as Error).message}`); }
         } else if (action === 'close_chat') { 
-            setSelectedChat(null); router.push('/dashboard', { scroll: false });
+            setSelectedChat(null); 
+            router.push('/dashboard', { scroll: false }); // Navigate to base after close
         }
     }
   };
 
+  // Loading states and error display
   if (isLoadingUser && !isInitialUserLoadComplete && !isSetUsernameModalOpen && !modalToken) {
     return (
       <div className="min-h-screen bg-gray-100 flex flex-col items-center justify-center p-4">
@@ -621,9 +665,10 @@ function DashboardContent() {
       </>
     );
   }
-  if ((!isInitialUserLoadComplete || !user || user.username === null) && !isLoadingUser && !isSetUsernameModalOpen) {
-     if (typeof window !== "undefined" && pathname && !pathname.includes("/auth")) { // Check if pathname is defined
-        router.push("/auth?error=user_setup_incomplete_final");
+  
+  if (!isLoadingUser && (!isInitialUserLoadComplete || !user || !user.username) && !isSetUsernameModalOpen ) {
+     if (typeof window !== "undefined" && pathname && !pathname.includes("/auth")) {
+        router.push("/auth?error=user_setup_incomplete_final_check");
      }
       return (
         <div className="min-h-screen bg-gray-100 flex flex-col items-center justify-center p-4">
@@ -632,10 +677,15 @@ function DashboardContent() {
       );
   }
 
+  // Main dashboard structure
+  // Conditionally render sidebar and chat area based on selectedChat and screen size (for mobile view)
+  const showChatViewOnMobile = selectedChat && searchParams.get('chatId');
+
   return (
     <>
       <div className="h-screen flex flex-col md:flex-row font-['Inter',_sans-serif] bg-gray-100 overflow-hidden">
-        <div className={`${selectedChat && searchParams.get('chatId') ? 'hidden' : 'flex'} md:flex flex-col`}>
+        {/* Sidebar: Always flex on md, conditionally hidden on mobile if a chat is selected */}
+        <div className={`${showChatViewOnMobile ? 'hidden' : 'flex'} md:flex flex-col w-full md:w-80 lg:w-96`}>
             <DashboardSidebar
                 user={user}
                 onLogout={handleLogout}
@@ -649,19 +699,20 @@ function DashboardContent() {
                 initialChatsFetchAttempted={initialChatsFetchAttempted}
                 chats={chats}
                 selectedChat={selectedChat}
-                onChatSelect={handleChatSelect}
+                onChatSelect={handleChatSelect} // This is crucial for chat switching
                 userError={userError} 
             />
         </div>
         
-        <main className={`${selectedChat && searchParams.get('chatId') ? 'flex' : 'hidden'} md:flex flex-grow flex-col relative overflow-hidden bg-white h-full md:h-auto`}>
+        {/* Chat Area: Always flex on md, conditionally shown on mobile if a chat is selected */}
+        <main className={`${showChatViewOnMobile ? 'flex' : 'hidden'} md:flex flex-grow flex-col relative overflow-hidden bg-white h-full`}>
             <ChatArea
                 selectedChat={selectedChat}
                 onSendMessage={handleSendMessage}
                 newMessage={newMessage}
                 setNewMessage={setNewMessage}
                 messagesEndRef={messagesEndRef}
-                onBackFromChatView={handleBackFromChatView}
+                onBackFromChatView={handleBackFromChatView} // Crucial for mobile back
                 onOpenChatActionModal={openChatActionModal}
                 userError={userError} 
                 isLoadingChats={isLoadingChats}
