@@ -86,7 +86,7 @@ const fetchUserChatsFromApi = async (token: string): Promise<Chat[]> => {
         errorMessage = errorData.message;
       }
     } catch (e) {
-      // console.log(e); 
+      console.log(e); 
     }
     console.error("API Error fetching chats (response not ok):", response.status, errorMessage);
     throw new Error(errorMessage);
