@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { Loader2, AlertTriangle } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 import ChatView from '../../Components/ChatView';
 import Modal from '../../Components/Modal';
 import { useDashboard } from '../layout'; 

@@ -19,6 +19,7 @@ interface DashboardSidebarProps {
   onCopyLink: () => void;
   isLoadingChats: boolean;
   initialChatsFetchAttempted: boolean;
+  isWebSocketConnecting: boolean; // Added this prop
   chats: Chat[];
   selectedChatId: string | undefined;
   onChatSelect: (chat: Chat) => void;
@@ -36,30 +37,37 @@ const DashboardSidebar: React.FC<DashboardSidebarProps> = ({
   onCopyLink,
   isLoadingChats,
   initialChatsFetchAttempted,
+  isWebSocketConnecting, // Use this prop
   chats,
   selectedChatId,
   onChatSelect,
   userError,
 }) => {
+  let statusMessage = null;
+  if (userError) {
+    statusMessage = (
+        <div className="bg-yellow-50 border-l-4 border-yellow-400 text-yellow-700 p-3 m-2 text-xs rounded-md flex items-center">
+            <Loader2 size={16} className="animate-spin mr-2" />
+            <span>{userError}</span>
+        </div>
+    );
+  } else if (isWebSocketConnecting) {
+      statusMessage = (
+        <div className="bg-blue-50 border-l-4 border-blue-400 text-blue-700 p-3 m-2 text-xs rounded-md flex items-center">
+            <Loader2 size={16} className="animate-spin mr-2" />
+            <span>Connecting to chat...</span>
+        </div>
+      );
+  }
+
   return (
     <aside className="flex flex-col w-full md:w-80 lg:w-96 bg-gray-50 border-r border-gray-200 h-full md:h-auto md:overflow-y-auto">
-      <div className="hidden md:block">
-        <DashboardHeader
+      <DashboardHeader
           onLogout={onLogout}
           onRequestNotificationPermission={onRequestNotificationPermission}
           notificationPermission={notificationPermission}
           username={user?.username}
-        />
-      </div>
-      <div className="md:hidden">
-        <DashboardHeader
-          onLogout={onLogout}
-          onRequestNotificationPermission={onRequestNotificationPermission}
-          notificationPermission={notificationPermission}
-          isMobile
-          username={user?.username}
-        />
-      </div>
+      />
 
       {user && (
         <UserInfoPanel
@@ -76,14 +84,8 @@ const DashboardSidebar: React.FC<DashboardSidebarProps> = ({
         onRequestPermission={onRequestNotificationPermission}
         username={user?.username}
       />
-
-      {userError && (userError.includes('reconnect') || userError.includes('lost')) && (
-        <div className="bg-yellow-50 border-l-4 border-yellow-400 text-yellow-700 p-3 m-2 text-xs rounded-md flex items-center">
-          <Loader2 size={16} className="animate-spin mr-2" />
-          <span>{userError}</span>
-        </div>
-      )}
-
+      
+      {statusMessage}
 
       <div className="flex-grow overflow-y-auto p-2">
         {isLoadingChats ? (

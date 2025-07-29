@@ -1,12 +1,8 @@
 "use client";
 
 import React, { useEffect, useState, useRef, Suspense, useCallback, createContext, useContext } from "react";
-import { useRouter, usePathname, useSearchParams, useParams } from "next/navigation";
-import {
-  AlertTriangle,
-  Loader2,
-  MessageSquareText,
-} from "lucide-react";
+import { useRouter, usePathname, useParams } from "next/navigation";
+import { Loader2 } from "lucide-react";
 
 import SetUsernameModal from "../Components/SetUsernameModal";
 import { Chat, ChatMessage, WebSocketMessagePayload, User } from "../types"; 
@@ -20,7 +16,7 @@ const NOTIFICATION_ICON_URL = "/favicon.ico";
 const MAX_RECONNECT_ATTEMPTS = 5;
 const INITIAL_RECONNECT_DELAY_MS = 1000;
 
-// INTERFACES (Added back)
+// INTERFACES
 interface MeApiResponse {
   success: boolean;
   message: string | null;
@@ -111,7 +107,6 @@ const fetchUserChatsFromApi = async (token: string): Promise<Chat[]> => {
 // MAIN LAYOUT COMPONENT
 function DashboardLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
-  const searchParams = useSearchParams();
   const params = useParams();
   const pathname = usePathname();
 
@@ -120,8 +115,6 @@ function DashboardLayout({ children }: { children: React.ReactNode }) {
   const [userError, setUserError] = useState<string | null>(null);
   const [copiedLink, setCopiedLink] = useState(false);
   const [isSetUsernameModalOpen, setIsSetUsernameModalOpen] = useState(false);
-  const [modalEmail, setModalEmail] = useState<string | null>(null);
-  const [modalToken, setModalToken] = useState<string | null>(null);
   const [isInitialUserLoadComplete, setIsInitialUserLoadComplete] = useState(false);
   const [chats, setChats] = useState<Chat[]>([]);
   const [isLoadingChats, setIsLoadingChats] = useState(false);
@@ -170,7 +163,7 @@ function DashboardLayout({ children }: { children: React.ReactNode }) {
   }, []);
 
   const playNotificationSound = useCallback(() => {
-    audioRef.current?.play().catch(e => console.warn("Sound play error:", e));
+    audioRef.current?.play().catch(() => {});
   }, []);
 
   const showBrowserNotification = useCallback((title: string, body: string, chatId: string | number) => {
@@ -189,6 +182,15 @@ function DashboardLayout({ children }: { children: React.ReactNode }) {
   useEffect(() => { latestPlayNotificationSoundRef.current = playNotificationSound; }, [playNotificationSound]);
   useEffect(() => { latestShowBrowserNotificationRef.current = showBrowserNotification; }, [showBrowserNotification]);
 
+  const scheduleReconnect = useCallback(() => {
+      const token = localStorage.getItem("token");
+      if (!token || reconnectAttemptsRef.current >= MAX_RECONNECT_ATTEMPTS) return;
+      setTimeout(() => {
+          reconnectAttemptsRef.current++;
+          connectWebSocket(token);
+      }, Math.min(INITIAL_RECONNECT_DELAY_MS * (2 ** reconnectAttemptsRef.current), 30000));
+  }, []); // connectWebSocket is memoized with its own dependencies, so it's stable
+
   const connectWebSocket = useCallback((token: string) => {
     if (ws.current && (ws.current.readyState === WebSocket.OPEN || ws.current.readyState === WebSocket.CONNECTING)) return;
     setIsWebSocketConnecting(true);
@@ -202,19 +204,11 @@ function DashboardLayout({ children }: { children: React.ReactNode }) {
     socket.onmessage = (event) => {
         const msgPayload: WebSocketMessagePayload = JSON.parse(event.data as string);
         const currentChatId = pathname.split('/').pop();
-
         if (msgPayload.type === "ANON_TO_USER") {
             const anonSessionId = msgPayload.from;
             if (!anonSessionId) return;
             const newMsgTimestamp = new Date(msgPayload.timestamp || Date.now());
-            const newAppMsg: ChatMessage = {
-                id: `msg-${newMsgTimestamp.getTime()}`,
-                text: msgPayload.content || "",
-                sender: msgPayload.nickname || "Anonymous",
-                timestamp: newMsgTimestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-                originalTimestamp: newMsgTimestamp.toISOString(),
-                nickname: msgPayload.nickname
-            };
+            const newAppMsg: ChatMessage = { id: `msg-${newMsgTimestamp.getTime()}`, text: msgPayload.content || "", sender: msgPayload.nickname || "Anonymous", timestamp: newMsgTimestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), originalTimestamp: newMsgTimestamp.toISOString(), nickname: msgPayload.nickname };
             setChats(prevChats => {
                 let chatExists = false;
                 const updatedList = prevChats.map(chat => {
@@ -246,16 +240,11 @@ function DashboardLayout({ children }: { children: React.ReactNode }) {
             scheduleReconnect();
         }
     };
-  }, [pathname]);
-
-  const scheduleReconnect = useCallback(() => {
-      const token = localStorage.getItem("token");
-      if (!token || reconnectAttemptsRef.current >= MAX_RECONNECT_ATTEMPTS) return;
-      setTimeout(() => {
-          reconnectAttemptsRef.current++;
-          connectWebSocket(token);
-      }, Math.min(1000 * (2 ** reconnectAttemptsRef.current), 30000));
-  }, [connectWebSocket]);
+    socket.onerror = () => {
+        setIsWebSocketConnecting(false);
+        ws.current?.close();
+    }
+  }, [pathname, scheduleReconnect]);
 
   useEffect(() => {
     const token = localStorage.getItem("token");
@@ -305,17 +294,14 @@ function DashboardLayout({ children }: { children: React.ReactNode }) {
 
   const handleDeleteChat = useCallback(async (chatId: string) => {
     const token = localStorage.getItem("token");
-    if (!token) {
-        setUserError("Authentication error.");
-        return;
-    }
+    if (!token) { setUserError("Authentication error."); return; }
     setChats(prev => prev.filter(c => c.id !== chatId));
     try {
         const res = await fetch(`${API_BASE_URL}/api/chat/${chatId}`, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } });
         if (!res.ok) throw new Error("Failed to delete on server.");
-    } catch (e) {
+    } catch (error) {
+        console.error("Delete chat error:", error);
         setUserError("Failed to delete chat. Please refresh.");
-        // Re-fetch chats to revert optimistic update
         if (token) fetchUserChatsFromApi(token).then(setChats);
     }
   }, []);
@@ -326,13 +312,7 @@ function DashboardLayout({ children }: { children: React.ReactNode }) {
     setIsInitialUserLoadComplete(true);
   };
 
-  const contextValue: DashboardContextType = {
-    user, chats,
-    getChatById: (id: string) => chats.find(chat => chat.id.toString() === id),
-    sendMessage: handleSendMessage,
-    logout: handleLogout,
-    deleteChat: handleDeleteChat,
-  };
+  const contextValue: DashboardContextType = { user, chats, getChatById: (id: string) => chats.find(chat => chat.id.toString() === id), sendMessage: handleSendMessage, logout: handleLogout, deleteChat: handleDeleteChat, };
 
   if (isLoadingUser || (isInitialUserLoadComplete && isLoadingChats)) {
     return (
@@ -353,7 +333,7 @@ function DashboardLayout({ children }: { children: React.ReactNode }) {
     <DashboardContext.Provider value={contextValue}>
         <div className="h-screen flex flex-col md:flex-row font-['Inter',_sans-serif] bg-gray-100 overflow-hidden">
             <div className={`${showChatViewOnMobile ? 'hidden' : 'flex'} md:flex flex-col w-full md:w-80 lg:w-96`}>
-                <DashboardSidebar user={user} onLogout={handleLogout} onRequestNotificationPermission={requestNotificationPermission} notificationPermission={notificationPermission} showNotificationPrompt={showNotificationPrompt} onCloseNotificationPrompt={() => setShowNotificationPrompt(false)} copiedLink={copiedLink} onCopyLink={() => {if (user?.chatLink) {navigator.clipboard.writeText(user.chatLink); setCopiedLink(true); setTimeout(() => setCopiedLink(false), 2000);}}} isLoadingChats={isLoadingChats} initialChatsFetchAttempted={initialChatsFetchAttempted} chats={chats} selectedChatId={params.chatId as string | undefined} onChatSelect={(chat) => router.push(`/dashboard/${chat.id}`)} userError={userError} />
+                <DashboardSidebar user={user} onLogout={handleLogout} onRequestNotificationPermission={requestNotificationPermission} notificationPermission={notificationPermission} showNotificationPrompt={showNotificationPrompt} onCloseNotificationPrompt={() => setShowNotificationPrompt(false)} copiedLink={copiedLink} onCopyLink={() => {if (user?.chatLink) {navigator.clipboard.writeText(user.chatLink); setCopiedLink(true); setTimeout(() => setCopiedLink(false), 2000);}}} isLoadingChats={isLoadingChats} initialChatsFetchAttempted={initialChatsFetchAttempted} isWebSocketConnecting={isWebSocketConnecting} chats={chats} selectedChatId={params.chatId as string | undefined} onChatSelect={(chat) => { router.push(`/dashboard/${chat.id}`); setChats(prev => prev.map(c => c.id === chat.id ? {...c, unreadCount: 0} : c)); if (ws.current?.readyState === WebSocket.OPEN) ws.current.send(JSON.stringify({type: "MARK_AS_READ", chatId: chat.id})); }} userError={userError} />
             </div>
             <main className={`${showChatViewOnMobile ? 'flex' : 'hidden'} md:flex flex-grow flex-col relative overflow-hidden bg-white h-full`}>
                 {children}
