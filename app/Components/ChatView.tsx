@@ -1,9 +1,8 @@
-// app/Components/ChatView.tsx
 "use client";
 
 import React from 'react';
 import { ArrowLeft, LogOut, Trash2, SendHorizontal, UserCircle } from 'lucide-react';
-import { Chat } from '../types'; // Import types
+import { Chat } from '../types'; 
 import Image from 'next/image';
 
 interface ChatViewProps {
@@ -11,9 +10,9 @@ interface ChatViewProps {
   onSendMessage: () => void;
   newMessage: string;
   setNewMessage: React.Dispatch<React.SetStateAction<string>>;
-  messagesEndRef: React.RefObject<HTMLDivElement | null>; // Added
-  onBack: () => void; // Added for mobile navigation
-  onOpenModal: (action: 'delete' | 'logout' | 'close_chat') => void;
+  messagesEndRef: React.RefObject<HTMLDivElement | null>;
+  onBack: () => void;
+  onOpenModal: (action: 'delete' | 'logout' | 'close_chat') => void; // This interface is correct
 }
 
 const ChatView: React.FC<ChatViewProps> = ({
@@ -27,14 +26,13 @@ const ChatView: React.FC<ChatViewProps> = ({
 }) => {
   const handleKeyPress = (event: React.KeyboardEvent<HTMLInputElement>) => {
     if (event.key === 'Enter' && !event.shiftKey) {
-      event.preventDefault(); // Prevent newline on enter
+      event.preventDefault();
       onSendMessage();
     }
   };
 
   return (
     <div className="flex flex-col h-full bg-white text-gray-800 shadow-inner md:shadow-none">
-      {/* Chat Header */}
       <header className="bg-gray-50 p-3 md:p-4 flex justify-between items-center border-b border-gray-200 sticky top-0 z-10">
         <div className="flex items-center space-x-3">
           <button
@@ -48,8 +46,8 @@ const ChatView: React.FC<ChatViewProps> = ({
             <Image
                 src={chat.avatar}
                 alt={chat.sender}
-                width={40} // Added width property
-                height={40} // Added height property
+                width={40}
+                height={40}
                 className="w-10 h-10 rounded-full object-cover"
             />
           ) : (
@@ -57,16 +55,14 @@ const ChatView: React.FC<ChatViewProps> = ({
           )}
           <div>
             <h3 className="font-semibold text-lg text-gray-700">{chat.sender}</h3>
-            {/* Placeholder for online status or last seen */}
-            {/* <p className="text-xs text-teal-500">Online</p> */}
           </div>
         </div>
         <div className="flex items-center space-x-2 md:space-x-3">
           <button
             onClick={() => onOpenModal('logout')}
             className="text-gray-500 hover:text-red-500 p-2 rounded-lg hover:bg-red-50 transition-colors"
-            aria-label="Leave chat"
-            title="Leave Chat"
+            aria-label="Logout"
+            title="Logout"
           >
             <LogOut size={20} />
           </button>
@@ -81,7 +77,6 @@ const ChatView: React.FC<ChatViewProps> = ({
         </div>
       </header>
 
-      {/* Messages Area */}
       <div className="flex-grow p-4 space-y-4 overflow-y-auto bg-white">
         {chat.messages.map((msg) => (
           <div key={msg.id} className={`flex ${msg.sender === 'self' ? 'justify-end' : 'justify-start'}`}>
@@ -106,7 +101,6 @@ const ChatView: React.FC<ChatViewProps> = ({
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Message Input */}
       <footer className="bg-gray-50 p-3 md:p-4 border-t border-gray-200 sticky bottom-0">
         <div className="flex items-center space-x-2 md:space-x-3">
           <input
