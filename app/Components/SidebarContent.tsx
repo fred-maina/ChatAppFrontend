@@ -1,4 +1,3 @@
-// app/Components/SidebarContent.tsx
 "use client";
 
 import React from 'react';
@@ -8,14 +7,14 @@ import Image from 'next/image';
 
 interface SidebarContentProps {
   chats: Chat[];
-  selectedChat: Chat | null;
+  selectedChatId: string | undefined; // Corrected: Was selectedChat, now selectedChatId
   onChatSelect: (chat: Chat) => void;
   onCloseSidebar?: () => void; 
 }
 
 const SidebarContent: React.FC<SidebarContentProps> = ({
   chats,
-  selectedChat,
+  selectedChatId, // Using the ID for comparison
   onChatSelect,
   onCloseSidebar,
 }) => {
@@ -33,7 +32,7 @@ const SidebarContent: React.FC<SidebarContentProps> = ({
           <div
             key={chat.id}
             className={`flex items-center p-3 rounded-lg cursor-pointer transition-colors duration-150 ease-in-out relative
-                        ${selectedChat?.id === chat.id
+                        ${selectedChatId === chat.id.toString()
                           ? 'bg-teal-500 text-white shadow-md'
                           : 'bg-white hover:bg-teal-50 text-gray-700 hover:text-teal-700'
                         }`}
@@ -41,39 +40,38 @@ const SidebarContent: React.FC<SidebarContentProps> = ({
             role="button"
             tabIndex={0}
             onKeyPress={(e) => e.key === 'Enter' && handleSelect(chat)}
-            aria-current={selectedChat?.id === chat.id ? "page" : undefined}
+            aria-current={selectedChatId === chat.id.toString() ? "page" : undefined}
           >
             <div className="flex-shrink-0 mr-3">
               {chat.avatar ? (
                 <Image 
                     src={chat.avatar} 
                     alt={chat.sender} 
-                    width={40} // Added width property
-                    height={40} // Added height property
+                    width={40}
+                    height={40}
                     className="w-10 h-10 rounded-full object-cover" 
                 />
               ) : (
                 <UserCircle
                   size={40}
-                  className={selectedChat?.id === chat.id ? 'text-teal-100' : 'text-gray-400'}
+                  className={selectedChatId === chat.id.toString() ? 'text-teal-100' : 'text-gray-400'}
                 />
               )}
             </div>
 
             <div className="flex-grow overflow-hidden">
               <div className="flex justify-between items-center">
-                <h4 className={`font-semibold text-sm truncate ${selectedChat?.id === chat.id ? 'text-white' : 'text-gray-800'}`}>
+                <h4 className={`font-semibold text-sm truncate ${selectedChatId === chat.id.toString() ? 'text-white' : 'text-gray-800'}`}>
                   {chat.sender}
                 </h4>
-                {/* Display unread count if greater than 0 */}
                 {chat.unreadCount && chat.unreadCount > 0 && (
                   <span className={`ml-2 text-xs font-bold px-2 py-0.5 rounded-full
-                                  ${selectedChat?.id === chat.id ? 'bg-white text-teal-600' : 'bg-teal-500 text-white'}`}>
+                                  ${selectedChatId === chat.id.toString() ? 'bg-white text-teal-600' : 'bg-teal-500 text-white'}`}>
                     {chat.unreadCount > 9 ? '9+' : chat.unreadCount}
                   </span>
                 )}
               </div>
-              <p className={`text-xs truncate ${selectedChat?.id === chat.id ? 'text-teal-100' : 'text-gray-500'}`}>
+              <p className={`text-xs truncate ${selectedChatId === chat.id.toString() ? 'text-teal-100' : 'text-gray-500'}`}>
                 {chat.messagePreview}
               </p>
             </div>
